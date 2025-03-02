@@ -1,18 +1,25 @@
-# PlexPatrol
+<p align="center">
+  <img src="assets/plexpatrol_icon.png" alt="PlexPatrol Logo" width="150" height="150">
+</p>
 
-![PlexPatrol Logo](assets/plexpatrol_icon.png)
+<h1 align="center">PlexPatrol</h1>
 
-**Advanced Plex Server Stream Monitoring & Management**
+<p align="center">
+  <strong>Advanced Plex Server Stream Monitoring & Management</strong>
+</p>
 
-[English](#english) • [Français](#français)
+<p align="center">
+  <a href="#english">English</a> •
+  <a href="#français">Français</a>
+</p>
 
 ---
 
-## <a id="english"></a>English
+<h2 id="english">English</h2>
 
 **PlexPatrol** is a comprehensive Plex stream monitoring and management application that allows you to control active sessions on your Plex server. Developed in Python with a PyQt5 graphical interface, it offers a complete solution for Plex server administrators who want to monitor and manage their server usage.
 
-### ✨ Features
+## ✨ Features
 
 - **Real-time monitoring** of active sessions on your Plex server
 - **Session management** with ability to terminate inappropriate streams
@@ -23,33 +30,29 @@
 - **System tray integration** for discreet background monitoring
 - **Detailed event logging** for troubleshooting and auditing
 
-### 📋 Requirements
+## 📋 Requirements
 
 - Python 3.8 or higher
 - Plex Media Server with remote access enabled
 - Plex authentication token
 - PyQt5 and other dependencies listed in requirements.txt
 
-### 🚀 Installation
+## 🚀 Installation
 
 1. Clone this repository:
 
-```bash
+```
 git clone https://github.com/yourusername/PlexPatrol.git
 cd PlexPatrol
 ```
 
 2. Install required dependencies:
 
-```bash
-pip install -r requirements.txt`
-```
+`pip install -r requirements.txt`
 
 3. Run the application:
 
-```bash
-python main.py
-```
+`python main.py`
 
 ## ⚙️ Configuration
 
@@ -74,7 +77,7 @@ On first run, the application will create a default configuration file. You need
 
 ---
 
-## <a id="français"></a>Français
+<h2 id="français">Français</h2>
 
 **PlexPatrol** est une application complète de surveillance et de gestion des flux Plex qui vous permet de contrôler les sessions actives sur votre serveur Plex. Développée en Python avec une interface graphique PyQt5, cette application offre une solution complète pour les administrateurs de serveurs Plex qui souhaitent surveiller et gérer l'utilisation de leur serveur.
 
@@ -100,24 +103,20 @@ On first run, the application will create a default configuration file. You need
 
 1. Clonez ce dépôt :
 
-```bash
+```
 git clone https://github.com/votrenomdutilisateur/PlexPatrol.git
 cd PlexPatrol
 ```
 
 2. Installez les dépendances requises :
 
-```bash
-pip install -r requirements.txt
-```
+`pip install -r requirements.txt`
 
 3. Lancez l'application :
 
-```bash
-python main.py
-```
+`python main.py`
 
-### ⚙️ Configuration
+## ⚙️ Configuration
 
 Au premier démarrage, l'application créera un fichier de configuration par défaut. Vous devez configurer :
 
@@ -126,13 +125,13 @@ Au premier démarrage, l'application créera un fichier de configuration par dé
 3. Les paramètres de notification (optionnel)
 4. Les préférences de surveillance automatique
 
-### 📊 Aperçu de l'interface
+## 📊 Aperçu de l'interface
 
 - **Onglet Sessions actives** : Visualiser et gérer les flux actuels
 - **Onglet Journal des événements** : Surveiller les activités et événements de l'application
 - **Onglet Statistiques** : Suivre le comportement des utilisateurs et les arrêts de flux
 
-### 🛠️ Utilisation avancée
+## 🛠️ Utilisation avancée
 
 - **Règles personnalisées** : Configurez des limitations de flux avancées basées sur l'heure, le type de contenu, et plus
 - **Export de statistiques** : Exportez les données d'utilisation au format CSV
@@ -146,4 +145,6 @@ MIT License © 2025 PlexPatrol
 
 ---
 
-Made with ❤️ for the Plex community
+<p align="center">
+  Made with ❤️ for the Plex community
+</p>
