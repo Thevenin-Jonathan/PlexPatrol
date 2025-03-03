@@ -7,6 +7,7 @@ from datetime import datetime
 import requests
 from PyQt5.QtCore import QThread, pyqtSignal
 from utils import get_app_path
+from database import PlexPatrolDB
 
 
 class StreamMonitor(QThread):
@@ -25,6 +26,7 @@ class StreamMonitor(QThread):
         self.known_sessions = {}
         self.last_poll_time = 0
         self.consecutive_errors = 0
+        self.db = PlexPatrolDB()
 
         # Configurer le logger
         self.setup_logger()
@@ -43,7 +45,7 @@ class StreamMonitor(QThread):
         file_handler = logging.FileHandler(
             os.path.join(logs_path, "stream_monitor.log"), encoding="utf-8"
         )
-        formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+        formatter = logging.Formatter("%(asctime)s - %(levellevel)s - %(message)s")
         file_handler.setFormatter(formatter)
         self.logger.addHandler(file_handler)
 
@@ -194,6 +196,9 @@ class StreamMonitor(QThread):
 
                 user_streams[user_id].append(stream_info)
 
+                self.db.add_or_update_user(user_id, username)
+                self.db.record_session(user_id, session_id, platform, device, ip_address, media_title, library_section)
+
             return user_streams
 
         except ET.ParseError as e:
@@ -271,7 +276,10 @@ class StreamMonitor(QThread):
         headers = {"X-Plex-Token": self.config["plex_server"]["token"]}
         try:
             response = requests.get(url, params=params, headers=headers, timeout=10)
-            return response.status_code == 200
+            if response.status_code == 200:
+                self.db.mark_session_terminated(session_id)
+                return True
+            return False
         except requests.exceptions.RequestException as e:
             self.logger.error(f"Erreur lors de l'arrêt du stream: {str(e)}")
             return False

@@ -64,8 +64,14 @@ class PlexMonitorApp(QMainWindow):
         # Charger les statistiques
         self.stats = self.load_stats()
 
+        # Charger les utilisateurs Plex
+        self.plex_users = {}
+
         # Créer l'interface utilisateur
         self.setup_ui()
+
+        # Charger les utilisateurs Plex
+        self.load_plex_users()
 
         # Créer et démarrer le thread de surveillance
         self.stream_monitor = StreamMonitor(self.config)
@@ -80,6 +86,26 @@ class PlexMonitorApp(QMainWindow):
 
         # Configurer l'icône de la barre des tâches
         self.setup_tray_icon()
+
+    def load_plex_users(self):
+        """Charge la liste des utilisateurs Plex depuis le serveur"""
+        try:
+            from utils import get_plex_users
+
+            self.plex_users = get_plex_users(self.config)
+            if self.plex_users:
+                self.add_log(
+                    f"Chargement de {len(self.plex_users)} utilisateurs Plex réussi",
+                    "SUCCESS",
+                )
+            else:
+                self.add_log(
+                    "Aucun utilisateur Plex trouvé ou erreur de connexion", "WARNING"
+                )
+        except Exception as e:
+            self.add_log(
+                f"Erreur lors du chargement des utilisateurs Plex: {str(e)}", "ERROR"
+            )
 
     def setup_ui(self):
         """Configurer l'interface utilisateur"""
@@ -156,6 +182,12 @@ class PlexMonitorApp(QMainWindow):
         clear_logs_action.setStatusTip("Effacer les logs affichés")
         clear_logs_action.triggered.connect(self.clear_logs)
         toolbar.addAction(clear_logs_action)
+
+        # Action pour gérer les utilisateurs
+        users_action = QAction("Gérer les utilisateurs", self)
+        users_action.setStatusTip("Gérer les utilisateurs et leurs permissions")
+        users_action.triggered.connect(self.show_users_dialog)
+        toolbar.addAction(users_action)
 
     def create_sessions_tab(self):
         """Créer l'onglet des sessions actives"""
@@ -722,6 +754,13 @@ class PlexMonitorApp(QMainWindow):
             event.accept()
         else:
             event.ignore()
+
+    def show_users_dialog(self):
+        """Afficher la boîte de dialogue de gestion des utilisateurs"""
+        from user_management import UserManagementDialog  # Importation à la demande
+
+        dialog = UserManagementDialog(self)
+        dialog.exec_()
 
 
 def main():
