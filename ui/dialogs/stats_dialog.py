@@ -1,9 +1,6 @@
-import os
 from PyQt5.QtWidgets import (
     QDialog,
     QVBoxLayout,
-    QHBoxLayout,
-    QLabel,
     QTabWidget,
     QTableWidget,
     QTableWidgetItem,

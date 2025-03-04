@@ -7,7 +7,6 @@ from PyQt5.QtWidgets import (
     QVBoxLayout,
     QPushButton,
     QHBoxLayout,
-    QFormLayout,
     QLineEdit,
     QSpinBox,
     QCheckBox,
@@ -17,42 +16,10 @@ from PyQt5.QtWidgets import (
     QGroupBox,
     QLabel,
 )
-from PyQt5.QtCore import Qt, QEvent
-from PyQt5.QtGui import QFocusEvent
-from database import PlexPatrolDB
-
-
-class PhoneNumberEdit(QLineEdit):
-    """Champ de saisie personnalisé pour les numéros de téléphone français"""
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.installEventFilter(self)  # Installer l'écouteur d'événements
-
-    def eventFilter(self, obj, event):
-        """Filtrer les événements pour détecter la perte de focus"""
-        if obj == self and event.type() == QEvent.FocusOut:
-            # Convertir automatiquement le numéro lors de la perte de focus
-            self.format_phone_number()
-        return super().eventFilter(obj, event)
-
-    def format_phone_number(self):
-        """Formater le numéro de téléphone au format international (+33)"""
-        phone = self.text().strip()
-
-        # Supprimer tous les caractères non numériques
-        digits_only = "".join(filter(str.isdigit, phone))
-
-        # Vérifier si c'est un numéro français commençant par 0 et ayant 10 chiffres
-        if phone.startswith("0") and len(digits_only) == 10:
-            # Remplacer le 0 par +33
-            formatted_phone = "+33" + digits_only[1:]
-            self.setText(formatted_phone)
-        # Pour les numéros déjà au format international
-        elif phone.startswith("+33") and len(digits_only) == 11:
-            # Conserver tel quel
-            pass
-        # Format incorrect, mais nous le gardons tel quel pour l'instant
+from PyQt5.QtCore import Qt
+from data.database import PlexPatrolDB
+from config.config_manager import save_config
+from ui.widgets.phone_field import PhoneNumberEdit
 
 
 class UserManagementDialog(QDialog):
@@ -164,7 +131,8 @@ class UserManagementDialog(QDialog):
 
     def load_users(self):
         """Charger les utilisateurs depuis la base de données"""
-        users = self.db.get_user_stats()
+        # Utiliser la nouvelle méthode qui récupère tous les utilisateurs
+        users = self.db.get_all_users()
 
         # Désactiver temporairement le tri
         self.users_table.setSortingEnabled(False)
@@ -300,16 +268,15 @@ class UserManagementDialog(QDialog):
                 # Supprimer de la configuration
                 if username in self.parent().config.get("users", {}):
                     del self.parent().config["users"][username]
-                    from utils import save_config
 
                     save_config(self.parent().config)
 
                 # Supprimer des statistiques si nécessaire
                 if username in self.parent().stats:
                     del self.parent().stats[username]
-                    stats_path = os.path.join(
-                        os.path.dirname(os.path.abspath(__file__)), "stats.json"
-                    )
+                    from utils.helpers import get_app_path
+
+                    stats_path = os.path.join(get_app_path(), "stats.json")
                     with open(stats_path, "w", encoding="utf-8") as f:
                         json.dump(self.parent().stats, f)
 
@@ -340,7 +307,7 @@ class UserManagementDialog(QDialog):
         )
 
         if reply == QMessageBox.Yes:
-            from database import migrate_data_to_db
+            from data.migration import migrate_data_to_db
 
             success = migrate_data_to_db()
 
@@ -374,31 +341,21 @@ class UserManagementDialog(QDialog):
         )
 
         if reply == QMessageBox.Yes:
-            users_config = self.parent().config.get("users", {})
+            # Compteur d'utilisateurs ajoutés ou mis à jour
+            updated_count = 0
 
-            # Mettre à jour ou ajouter chaque utilisateur Plex
+            # Mettre à jour ou ajouter chaque utilisateur Plex directement dans la base de données
             for user_id, username in self.parent().plex_users.items():
-                # Si l'utilisateur n'existe pas encore, ajouter avec des valeurs par défaut
-                if username not in users_config:
-                    users_config[username] = {
-                        "max_streams": 1,
-                        "kill_message": "Nombre maximum de flux atteint",
-                        "is_managed": True,
-                    }
+                # Ajouter ou mettre à jour l'utilisateur dans la base de données
+                success = self.db.add_or_update_user(
+                    user_id=user_id,
+                    username=username,
+                    is_whitelisted=0,  # Par défaut, non whitelisté
+                    max_streams=1,  # Valeur par défaut
+                )
 
-                    # Également ajouter l'utilisateur à la base de données
-                    self.db.add_or_update_user(
-                        user_id=user_id,
-                        username=username,
-                        is_whitelisted=0,  # Par défaut, non whitelisté
-                        max_streams=1,  # Valeur par défaut
-                    )
-
-            # Mettre à jour la configuration
-            self.parent().config["users"] = users_config
-            from utils import save_config  # Ajout de l'import manquant
-
-            save_config(self.parent().config)
+                if success:
+                    updated_count += 1
 
             # Actualiser le tableau
             self.load_users()
@@ -406,5 +363,5 @@ class UserManagementDialog(QDialog):
             QMessageBox.information(
                 self,
                 "Synchronisation réussie",
-                f"{len(self.parent().plex_users)} utilisateurs synchronisés avec Plex.",
+                f"{updated_count} utilisateurs synchronisés avec Plex.",
             )

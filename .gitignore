@@ -65,6 +65,10 @@ config.yml
 *.local.yml
 .env
 
+# Ignorer les fichiers de base de données
+*.db
+data/*.db
+
 # Logs et données
 logs/
 *.log
@@ -83,3 +87,5 @@ tmp/
 *.pyo
 assets/custom/*
 !assets/default/*
+
+recommandations.txt

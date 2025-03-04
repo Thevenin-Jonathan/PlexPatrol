@@ -7,7 +7,7 @@ from datetime import datetime
 import requests
 from PyQt5.QtCore import QThread, pyqtSignal
 from utils import get_app_path
-from database import PlexPatrolDB
+from data import PlexPatrolDB, load_stats, save_stats, update_user_stats
 
 
 class StreamMonitor(QThread):
@@ -197,7 +197,15 @@ class StreamMonitor(QThread):
                 user_streams[user_id].append(stream_info)
 
                 self.db.add_or_update_user(user_id, username)
-                self.db.record_session(user_id, session_id, platform, device, ip_address, media_title, library_section)
+                self.db.record_session(
+                    user_id,
+                    session_id,
+                    platform,
+                    device,
+                    ip_address,
+                    media_title,
+                    library_section,
+                )
 
             return user_streams
 

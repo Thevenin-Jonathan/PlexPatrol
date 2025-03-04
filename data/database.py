@@ -4,13 +4,18 @@ import json
 import logging
 import hashlib
 from datetime import datetime
-from utils import get_app_path, load_config
+from utils import get_app_path
 
 
 class PlexPatrolDB:
     def __init__(self):
-        db_path = os.path.join(get_app_path(), "plexpatrol.db")
-        self.db_path = db_path
+        # Créer le dossier data s'il n'existe pas déjà
+        data_dir = os.path.join(get_app_path(), "data")
+        if not os.path.exists(data_dir):
+            os.makedirs(data_dir)
+
+        # Utiliser le chemin dans le dossier data
+        self.db_path = os.path.join(data_dir, "plexpatrol.db")
         self.initialize_db()
 
     def initialize_db(self):
@@ -161,6 +166,54 @@ class PlexPatrolDB:
                 f"Erreur lors de l'ajout/mise à jour de l'utilisateur: {str(e)}"
             )
             return False
+
+    def get_all_users(self):
+        """Récupère tous les utilisateurs de la base de données, avec ou sans statistiques"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+
+            # Récupérer tous les utilisateurs avec statistiques (si disponibles)
+            cursor.execute(
+                """
+            SELECT 
+                u.*,
+                COALESCE(COUNT(s.id), 0) AS total_sessions,
+                COALESCE(SUM(CASE WHEN s.was_terminated = 1 THEN 1 ELSE 0 END), 0) AS terminated_sessions
+            FROM plex_users u
+            LEFT JOIN sessions s ON u.id = s.user_id
+            GROUP BY u.id
+            """
+            )
+
+            results = [dict(row) for row in cursor.fetchall()]
+
+            # Pour chaque utilisateur, déterminer la plateforme principale
+            for user in results:
+                cursor.execute(
+                    """
+                SELECT platform, COUNT(*) AS count
+                FROM sessions
+                WHERE user_id = ?
+                GROUP BY platform
+                ORDER BY count DESC
+                LIMIT 1
+                """,
+                    (user["id"],),
+                )
+
+                platform_data = cursor.fetchone()
+                if platform_data:
+                    user["main_platform"] = dict(platform_data)["platform"]
+                else:
+                    user["main_platform"] = "Inconnue"
+
+            conn.close()
+            return results
+        except Exception as e:
+            logging.error(f"Erreur lors de la récupération des utilisateurs: {str(e)}")
+            return []
 
     def delete_user(self, username):
         """Supprimer un utilisateur de la base de données"""
@@ -386,75 +439,70 @@ class PlexPatrolDB:
             return None
 
 
-def migrate_data_to_db():
-    """Migration des données depuis les fichiers JSON vers la base de données SQLite"""
+def load_stats():
+    """Charger les statistiques d'utilisation"""
+    stats_path = os.path.join(get_app_path(), "stats.json")
+
+    if not os.path.exists(stats_path):
+        return {}
+
     try:
-        db = PlexPatrolDB()
+        with open(stats_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception as e:
+        logging.error(f"Erreur lors du chargement des statistiques: {str(e)}")
+        return {}
 
-        # Charger la configuration existante
-        config = load_config()
-        whitelist_ids = config.get("rules", {}).get("whitelist", [])
 
-        # Charger les statistiques existantes
-        stats_path = os.path.join(get_app_path(), "stats.json")
-        if os.path.exists(stats_path):
-            with open(stats_path, "r", encoding="utf-8") as f:
-                stats = json.load(f)
-
-                # Migrer chaque utilisateur
-                for username, user_data in stats.items():
-                    # Créer l'utilisateur dans la base de données
-                    # Note: nous n'avons pas l'ID utilisateur réel ici, nous utilisons donc un ID généré
-                    user_id = hashlib.md5(username.encode()).hexdigest()
-
-                    # Vérifier si l'utilisateur est dans la liste blanche
-                    is_whitelisted = 1 if user_id in whitelist_ids else 0
-
-                    # Ajouter l'utilisateur
-                    db.add_or_update_user(
-                        user_id=user_id,
-                        username=username,
-                        is_whitelisted=is_whitelisted,
-                        notes="Utilisateur migré depuis stats.json",
-                    )
-
-                    # Migrer les statistiques
-                    kill_count = user_data.get("kill_count", 0)
-                    platforms = user_data.get("platforms", {})
-
-                    # Créer des sessions fictives pour représenter les statistiques
-                    for platform, count in platforms.items():
-                        for i in range(count):
-                            # Créer une session terminée pour chaque arrêt
-                            session_id = f"migrated_{user_id}_{platform}_{i}"
-                            db.record_session(
-                                user_id=user_id,
-                                session_id=session_id,
-                                platform=platform,
-                                device="Migration",
-                                ip_address="0.0.0.0",
-                                media_title="Session migrée",
-                                library_section="Migration",
-                            )
-                            if i < kill_count:
-                                db.mark_session_terminated(session_id)
-
-                    # Pour les sessions non terminées (total_sessions - kill_count)
-                    non_terminated = user_data.get("total_sessions", 0) - kill_count
-                    for i in range(non_terminated):
-                        session_id = f"migrated_normal_{user_id}_{i}"
-                        db.record_session(
-                            user_id=user_id,
-                            session_id=session_id,
-                            platform="Inconnu",
-                            device="Migration",
-                            ip_address="0.0.0.0",
-                            media_title="Session migrée",
-                            library_section="Migration",
-                        )
-
-        logging.info("Migration des données terminée avec succès")
+def save_stats(stats):
+    """Enregistrer les statistiques d'utilisation"""
+    stats_path = os.path.join(get_app_path(), "stats.json")
+    try:
+        with open(stats_path, "w", encoding="utf-8") as f:
+            json.dump(stats, f, indent=2)
         return True
     except Exception as e:
-        logging.error(f"Erreur lors de la migration des données: {str(e)}")
+        logging.error(f"Erreur lors de l'enregistrement des statistiques: {str(e)}")
         return False
+
+
+def update_user_stats(
+    stats, username, stream_count=1, stream_killed=False, platform=None
+):
+    """
+    Mettre à jour les statistiques d'un utilisateur
+
+    Args:
+        stats (dict): Dictionnaire des statistiques
+        username (str): Nom de l'utilisateur
+        stream_count (int): Nombre de flux détectés
+        stream_killed (bool): Si un flux a été arrêté
+        platform (str): Plateforme utilisée (si flux arrêté)
+
+    Returns:
+        dict: Statistiques mises à jour
+    """
+    if username not in stats:
+        stats[username] = {
+            "total_sessions": 0,
+            "kill_count": 0,
+            "last_seen": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "platforms": {},
+        }
+
+    # Mettre à jour les statistiques de base
+    stats[username]["total_sessions"] += stream_count
+    stats[username]["last_seen"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    # Si un flux a été arrêté
+    if stream_killed:
+        stats[username]["kill_count"] += 1
+        stats[username]["last_kill"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        # Mettre à jour les statistiques par plateforme
+        if platform:
+            if platform not in stats[username]["platforms"]:
+                stats[username]["platforms"][platform] = 0
+            stats[username]["platforms"][platform] += 1
+
+    return stats

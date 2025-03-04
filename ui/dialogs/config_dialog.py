@@ -5,14 +5,12 @@ from PyQt5.QtWidgets import (
     QFormLayout,
     QLineEdit,
     QSpinBox,
-    QTextEdit,
     QDialogButtonBox,
     QVBoxLayout,
     QHBoxLayout,
     QGroupBox,
     QPushButton,
     QLabel,
-    QCheckBox,
     QComboBox,
     QListWidget,
     QListWidgetItem,
@@ -21,8 +19,8 @@ from PyQt5.QtWidgets import (
     QMessageBox,
 )
 from PyQt5.QtCore import Qt
-from utils import save_config, send_telegram_notification
-from utils import get_plex_users
+from utils import send_telegram_notification
+from core import get_plex_users
 
 
 class ConfigDialog(QDialog):
@@ -233,7 +231,9 @@ class ConfigDialog(QDialog):
 
         # Mettre à jour les variables d'environnement pour les données sensibles
         # et les écrire dans .env
-        env_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
+        from utils.helpers import get_app_path
+
+        env_file_path = os.path.join(get_app_path(), ".env")
         env_contents = []
 
         # Lire le fichier .env existant s'il existe
@@ -299,7 +299,7 @@ class ConfigDialog(QDialog):
         self.config["telegram"]["group_id"] = "ENV_VAR:TELEGRAM_GROUP_ID"
 
         # Enregistrer la configuration
-        from utils import save_config
+        from config.config_manager import save_config
 
         save_config(self.config)
 
