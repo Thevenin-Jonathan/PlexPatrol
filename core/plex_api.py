@@ -88,40 +88,11 @@ def get_plex_users():
     """
     Récupère la liste des utilisateurs Plex avec leurs IDs
 
-    Args:
-        config (dict): Configuration contenant l'URL et le token Plex
-
     Returns:
         dict: Dictionnaire {user_id: username} des utilisateurs
     """
-    import requests
-    import xml.etree.ElementTree as ET
-    import logging
     from config.config_manager import config
 
-    url = f"{config.plex_server_url}/accounts"
-    headers = {"X-Plex-Token": config.plex_token}
-
-    try:
-        response = requests.get(url, headers=headers, timeout=10)
-        if response.status_code == 200:
-            # Parser la réponse XML
-            root = ET.fromstring(response.text)
-
-            # Extraire les informations des utilisateurs
-            users = {}
-            for user in root.findall(".//Account"):
-                user_id = user.get("id")
-                username = user.get("name")
-                if user_id and username:
-                    users[user_id] = username
-
-            return users
-        else:
-            logging.error(
-                f"Erreur lors de la récupération des utilisateurs: {response.status_code}"
-            )
-            return {}
-    except Exception as e:
-        logging.error(f"Exception lors de la récupération des utilisateurs: {str(e)}")
-        return {}
+    # Utiliser la classe PlexAPI pour éviter la duplication de code
+    plex_api = PlexAPI(config.plex_server_url, config.plex_token)
+    return plex_api.get_users()
