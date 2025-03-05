@@ -18,8 +18,10 @@ class StreamMonitor(QThread):
     sessions_updated = pyqtSignal(dict)  # user_streams dictionary
     connection_status = pyqtSignal(bool)  # is_connected
 
-    def __init__(self, config):
+    def __init__(self):
         super().__init__()
+        from config.config_manager import config
+
         self.config = config
         self.is_running = True
         self.is_paused = False
@@ -57,7 +59,7 @@ class StreamMonitor(QThread):
             try:
                 if not self.is_paused:
                     self.check_sessions()
-                time.sleep(self.config["plex_server"].get("check_interval", 30))
+                time.sleep(self.config.check_interval)
             except Exception as e:
                 self.logger.error(f"Erreur dans la boucle de surveillance: {str(e)}")
                 self.new_log.emit(
@@ -109,8 +111,8 @@ class StreamMonitor(QThread):
 
     def get_active_sessions(self):
         """Récupérer les sessions actives depuis le serveur Plex"""
-        url = f'{self.config["plex_server"]["url"]}/status/sessions'
-        headers = {"X-Plex-Token": self.config["plex_server"]["token"]}
+        url = f"{self.config.plex_server_url}/status/sessions"
+        headers = {"X-Plex-Token": self.config.plex_token}
 
         try:
             response = requests.get(url, headers=headers, timeout=10)
@@ -274,14 +276,9 @@ class StreamMonitor(QThread):
 
     def stop_stream(self, user_id, username, session_id):
         """Arrêter un stream spécifique"""
-        url = f'{self.config["plex_server"]["url"]}/status/sessions/terminate'
-        params = {
-            "sessionId": session_id,
-            "reason": self.config["rules"].get(
-                "termination_message", "Dépassement du nombre de flux autorisés"
-            ),
-        }
-        headers = {"X-Plex-Token": self.config["plex_server"]["token"]}
+        url = f"{self.config.plex_server_url}/status/sessions/terminate"
+        params = {"sessionId": session_id, "reason": self.config.termination_message}
+        headers = {"X-Plex-Token": self.config.plex_token}
         try:
             response = requests.get(url, params=params, headers=headers, timeout=10)
             if response.status_code == 200:

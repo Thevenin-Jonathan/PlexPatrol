@@ -2,8 +2,9 @@ import os
 import json
 import logging
 import hashlib
-from utils import get_app_path, load_config
+from utils import get_app_path
 from data import PlexPatrolDB
+from config.config_manager import config
 
 
 def migrate_data_to_db():
@@ -12,7 +13,6 @@ def migrate_data_to_db():
         db = PlexPatrolDB()
 
         # Charger la configuration existante
-        config = load_config()
         whitelist_ids = config.get("rules", {}).get("whitelist", [])
 
         # Charger les statistiques existantes

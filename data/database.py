@@ -69,6 +69,9 @@ class PlexPatrolDB:
             """
             )
 
+            # Créer la table de configuration
+            self.create_config_table(conn)
+
             conn.commit()
             conn.close()
 
@@ -79,6 +82,23 @@ class PlexPatrolDB:
                 f"Erreur lors de l'initialisation de la base de données: {str(e)}"
             )
             return False
+
+    def create_config_table(self, conn):
+        """Crée la table de configuration si elle n'existe pas"""
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+        CREATE TABLE IF NOT EXISTS app_config (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL,
+            value_type TEXT NOT NULL,
+            category TEXT,
+            description TEXT,
+            last_modified TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+        )
+        conn.commit()
 
     def add_or_update_user(
         self,

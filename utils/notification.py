@@ -2,7 +2,7 @@ import requests
 import logging
 
 
-def send_telegram_notification(config, message):
+def send_telegram_notification(message):
     """
     Envoyer une notification Telegram
 
@@ -13,8 +13,14 @@ def send_telegram_notification(config, message):
     Returns:
         bool: True si le message a été envoyé avec succès, False sinon
     """
-    bot_token = config["telegram"].get("bot_token", "")
-    group_id = config["telegram"].get("group_id", "")
+    from config.config_manager import config
+
+    if not config.telegram_enabled:
+        logging.warning("Notifications Telegram désactivées, message non envoyé")
+        return False
+
+    bot_token = config.telegram_bot_token
+    group_id = config.telegram_group_id
 
     if not bot_token or not group_id:
         logging.warning("Configuration Telegram incomplète, notification non envoyée")

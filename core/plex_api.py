@@ -97,9 +97,10 @@ def get_plex_users(config):
     import requests
     import xml.etree.ElementTree as ET
     import logging
+    from config.config_manager import config
 
-    url = f"{config['plex_server']['url']}/accounts"
-    headers = {"X-Plex-Token": config["plex_server"]["token"]}
+    url = f"{config.plex_server_url}/accounts"
+    headers = {"X-Plex-Token": config.plex_token}
 
     try:
         response = requests.get(url, headers=headers, timeout=10)

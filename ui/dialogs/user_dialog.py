@@ -18,7 +18,6 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import Qt
 from data.database import PlexPatrolDB
-from config.config_manager import save_config
 from ui.widgets.phone_field import PhoneNumberEdit
 
 
@@ -264,12 +263,6 @@ class UserManagementDialog(QDialog):
             try:
                 # Supprimer de la base de données
                 self.db.delete_user(username)
-
-                # Supprimer de la configuration
-                if username in self.parent().config.get("users", {}):
-                    del self.parent().config["users"][username]
-
-                    save_config(self.parent().config)
 
                 # Supprimer des statistiques si nécessaire
                 if username in self.parent().stats:

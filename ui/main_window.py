@@ -27,7 +27,7 @@ from PyQt5.QtGui import QIcon, QTextCursor
 from core import StreamMonitor
 from ui.dialogs import ConfigDialog
 from ui.dialogs import StatisticsDialog
-from config.config_manager import load_config
+from config.config_manager import config
 from utils import get_app_path
 
 
@@ -48,9 +48,6 @@ class PlexPatrolApp(QMainWindow):
         initialize_env_file()
         validate_env_variables()
 
-        # Charger la configuration
-        self.config = load_config()
-
         # Charger les statistiques
         self.stats = self.load_stats()
 
@@ -64,7 +61,7 @@ class PlexPatrolApp(QMainWindow):
         self.load_plex_users()
 
         # Créer et démarrer le thread de surveillance
-        self.stream_monitor = StreamMonitor(self.config)
+        self.stream_monitor = StreamMonitor()
 
         # Connecter les signaux
         self.stream_monitor.new_log.connect(self.add_log)
@@ -82,7 +79,7 @@ class PlexPatrolApp(QMainWindow):
         try:
             from core.plex_api import get_plex_users
 
-            self.plex_users = get_plex_users(self.config)
+            self.plex_users = get_plex_users()
             if self.plex_users:
                 self.add_log(
                     f"Chargement de {len(self.plex_users)} utilisateurs Plex réussi",
@@ -529,11 +526,8 @@ class PlexPatrolApp(QMainWindow):
 
     def show_config_dialog(self):
         """Afficher la boîte de dialogue de configuration"""
-        dialog = ConfigDialog(self.config, self)
+        dialog = ConfigDialog(self)
         if dialog.exec_():
-            # La configuration a été modifiée, recharger
-            self.config = load_config()
-            self.stream_monitor.config = self.config
             self.add_log("Configuration mise à jour", "SUCCESS")
 
     def show_stats_dialog(self):

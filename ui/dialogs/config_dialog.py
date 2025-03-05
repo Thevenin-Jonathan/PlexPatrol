@@ -17,6 +17,7 @@ from PyQt5.QtWidgets import (
     QTabWidget,
     QWidget,
     QMessageBox,
+    QCheckBox,
 )
 from PyQt5.QtCore import Qt
 from utils import send_telegram_notification
@@ -24,40 +25,18 @@ from core import get_plex_users
 
 
 class ConfigDialog(QDialog):
-    def __init__(self, config, parent=None):
+    def __init__(self, parent=None):
         super().__init__(parent)
-        self.config = config
-        self.plex_users = {}  # Sera rempli dans setup_ui
+        from config.config_manager import config
+
+        # Utiliser directement l'instance globale config
+        self.config_manager = config
+        self.plex_users = {}
+
         self.setup_ui()
 
     def setup_ui(self):
         """Configurer l'interface utilisateur du dialogue"""
-
-        # Priorité aux variables d'environnement sur les valeurs de config
-        plex_url = os.getenv("PLEX_SERVER_URL", "")
-        if not plex_url:
-            plex_url = self.config["plex_server"].get("url", "http://localhost:32400")
-            if plex_url == "ENV_VAR:PLEX_SERVER_URL":
-                plex_url = ""
-
-        plex_token = os.getenv("PLEX_TOKEN", "")
-        if not plex_token:
-            plex_token = self.config["plex_server"].get("token", "")
-            if plex_token == "ENV_VAR:PLEX_TOKEN":
-                plex_token = ""
-
-        telegram_token = os.getenv("TELEGRAM_BOT_TOKEN", "")
-        if not telegram_token:
-            telegram_token = self.config.get("telegram", {}).get("bot_token", "")
-            if telegram_token == "ENV_VAR:TELEGRAM_BOT_TOKEN":
-                telegram_token = ""
-
-        telegram_group = os.getenv("TELEGRAM_GROUP_ID", "")
-        if not telegram_group:
-            telegram_group = self.config.get("telegram", {}).get("group_id", "")
-            if telegram_group == "ENV_VAR:TELEGRAM_GROUP_ID":
-                telegram_group = ""
-
         self.setWindowTitle("Configuration")
         self.resize(550, 600)
 
@@ -70,17 +49,14 @@ class ConfigDialog(QDialog):
         server_tab = QWidget()
         server_layout = QFormLayout(server_tab)
 
-        self.server_url = QLineEdit(plex_url)
+        self.server_url = QLineEdit()  # Suppression de l'initialisation
         server_layout.addRow("URL du serveur:", self.server_url)
 
-        self.plex_token = QLineEdit(plex_token)
+        self.plex_token = QLineEdit()  # Suppression de l'initialisation
         server_layout.addRow("Token Plex:", self.plex_token)
 
         self.check_interval = QSpinBox()
         self.check_interval.setRange(10, 300)
-        self.check_interval.setValue(
-            self.config["plex_server"].get("check_interval", 30)
-        )
         self.check_interval.setSuffix(" secondes")
         server_layout.addRow("Intervalle de vérification:", self.check_interval)
 
@@ -98,14 +74,9 @@ class ConfigDialog(QDialog):
         rules_form = QFormLayout()
         self.max_streams = QSpinBox()
         self.max_streams.setRange(1, 10)
-        self.max_streams.setValue(self.config.get("rules", {}).get("max_streams", 1))
         rules_form.addRow("Nombre max de flux par utilisateur:", self.max_streams)
 
-        self.termination_message = QLineEdit(
-            self.config.get("rules", {}).get(
-                "termination_message", "Dépassement du nombre de flux autorisés"
-            )
-        )
+        self.termination_message = QLineEdit()  # Suppression de l'initialisation
         rules_form.addRow("Message d'arrêt:", self.termination_message)
 
         rules_layout.addLayout(rules_form)
@@ -115,7 +86,9 @@ class ConfigDialog(QDialog):
         whitelist_layout = QVBoxLayout(whitelist_group)
 
         # Charger la liste des utilisateurs Plex
-        self.plex_users = get_plex_users(self.config)
+        from core.plex_api import get_plex_users
+
+        self.plex_users = get_plex_users()
 
         # Zone de sélection des utilisateurs
         users_layout = QHBoxLayout()
@@ -152,14 +125,6 @@ class ConfigDialog(QDialog):
         self.whitelist.setAlternatingRowColors(True)
         self.whitelist.setSelectionMode(QListWidget.SingleSelection)
 
-        # Remplir la liste avec les utilisateurs déjà whitelistés
-        whitelist_ids = self.config.get("rules", {}).get("whitelist", [])
-        for user_id in whitelist_ids:
-            username = self.plex_users.get(user_id, f"Inconnu (ID: {user_id})")
-            item = QListWidgetItem(f"{username}")
-            item.setData(Qt.UserRole, user_id)  # Stocker l'ID utilisateur
-            self.whitelist.addItem(item)
-
         whitelist_layout.addWidget(self.whitelist)
 
         remove_btn = QPushButton("Supprimer")
@@ -173,10 +138,13 @@ class ConfigDialog(QDialog):
         notif_tab = QWidget()
         notif_layout = QFormLayout(notif_tab)
 
-        self.telegram_token = QLineEdit(telegram_token)
+        self.telegram_enabled = QCheckBox("Activer les notifications Telegram")
+        notif_layout.addRow("", self.telegram_enabled)
+
+        self.telegram_token = QLineEdit()  # Suppression de l'initialisation
         notif_layout.addRow("Token du bot Telegram:", self.telegram_token)
 
-        self.telegram_group = QLineEdit(telegram_group)
+        self.telegram_group = QLineEdit()  # Suppression de l'initialisation
         notif_layout.addRow("ID du groupe/canal Telegram:", self.telegram_group)
 
         # Bouton pour tester les notifications
@@ -196,6 +164,9 @@ class ConfigDialog(QDialog):
         buttons.rejected.connect(self.reject)
 
         layout.addWidget(buttons)
+
+        # Charger les valeurs après avoir créé tous les widgets
+        self.load_settings()
 
     def add_to_whitelist(self):
         """Ajouter un utilisateur à la liste blanche"""
@@ -272,36 +243,28 @@ class ConfigDialog(QDialog):
             f.write(f"TELEGRAM_BOT_TOKEN={env_vars['TELEGRAM_BOT_TOKEN']}\n")
             f.write(f"TELEGRAM_GROUP_ID={env_vars['TELEGRAM_GROUP_ID']}\n")
 
-        # Mettre à jour la configuration (sans les données sensibles)
-        if "plex_server" not in self.config:
-            self.config["plex_server"] = {}
+        # Mettre à jour la configuration dans la base de données
+        self.config_manager.set("plex_server.url", self.server_url.text())
+        self.config_manager.set("plex_server.token", self.plex_token.text())
+        self.config_manager.set(
+            "plex_server.check_interval", self.check_interval.value()
+        )
 
-        # Les valeurs sensibles seront remplacées par des références aux variables d'environnement
-        self.config["plex_server"]["url"] = "ENV_VAR:PLEX_SERVER_URL"
-        self.config["plex_server"]["token"] = "ENV_VAR:PLEX_TOKEN"
-        self.config["plex_server"]["check_interval"] = self.check_interval.value()
-
-        if "rules" not in self.config:
-            self.config["rules"] = {}
-        self.config["rules"]["max_streams"] = self.max_streams.value()
-        self.config["rules"]["termination_message"] = self.termination_message.text()
+        self.config_manager.set("rules.max_streams", self.max_streams.value())
+        self.config_manager.set(
+            "rules.termination_message", self.termination_message.text()
+        )
 
         # Mettre à jour la whitelist avec les IDs utilisateurs
         whitelist_ids = []
         for i in range(self.whitelist.count()):
             user_id = self.whitelist.item(i).data(Qt.UserRole)
             whitelist_ids.append(user_id)
-        self.config["rules"]["whitelist"] = whitelist_ids
+        self.config_manager.set("rules.whitelist", whitelist_ids)
 
-        if "telegram" not in self.config:
-            self.config["telegram"] = {}
-        self.config["telegram"]["bot_token"] = "ENV_VAR:TELEGRAM_BOT_TOKEN"
-        self.config["telegram"]["group_id"] = "ENV_VAR:TELEGRAM_GROUP_ID"
-
-        # Enregistrer la configuration
-        from config.config_manager import save_config
-
-        save_config(self.config)
+        self.config_manager.set("telegram.enabled", self.telegram_enabled.isChecked())
+        self.config_manager.set("telegram.bot_token", self.telegram_token.text())
+        self.config_manager.set("telegram.group_id", self.telegram_group.text())
 
         # Recharger les variables d'environnement pour les prendre en compte immédiatement
         from dotenv import load_dotenv
@@ -333,19 +296,12 @@ class ConfigDialog(QDialog):
 
     def test_notification(self):
         """Tester l'envoi d'une notification Telegram"""
-
-        # Créer une configuration temporaire
-        temp_config = {
-            "telegram": {
-                "bot_token": self.telegram_token.text(),
-                "group_id": self.telegram_group.text(),
-            }
-        }
+        from utils import send_telegram_notification
 
         message = "Ceci est un message de test de l'application PlexPatrol"
 
         try:
-            result = send_telegram_notification(temp_config, message)
+            result = send_telegram_notification(message)
             if result:
                 QMessageBox.information(
                     self, "Succès", "Notification envoyée avec succès!"
@@ -358,3 +314,31 @@ class ConfigDialog(QDialog):
             QMessageBox.critical(
                 self, "Erreur", f"Erreur lors de l'envoi de la notification: {str(e)}"
             )
+
+    def load_settings(self):
+        """Charge les paramètres de configuration dans l'interface"""
+        # Cette méthode est redondante car vous chargez déjà les paramètres dans setup_ui
+        # On peut la rendre plus simple ou la supprimer
+
+        # Plex
+        self.server_url.setText(self.config_manager.plex_server_url)
+        self.plex_token.setText(self.config_manager.plex_token)
+        self.check_interval.setValue(self.config_manager.check_interval)
+
+        # Règles
+        self.max_streams.setValue(self.config_manager.default_max_streams)
+        self.termination_message.setText(self.config_manager.termination_message)
+
+        # Telegram
+        self.telegram_enabled.setChecked(self.config_manager.telegram_enabled)
+        self.telegram_token.setText(self.config_manager.telegram_bot_token)
+        self.telegram_group.setText(self.config_manager.telegram_group_id)
+
+        # Whitelist (si nécessaire)
+        self.whitelist.clear()
+        whitelist_ids = self.config_manager.get("rules.whitelist", [])
+        for user_id in whitelist_ids:
+            username = self.plex_users.get(user_id, f"Inconnu (ID: {user_id})")
+            item = QListWidgetItem(f"{username}")
+            item.setData(Qt.UserRole, user_id)
+            self.whitelist.addItem(item)
