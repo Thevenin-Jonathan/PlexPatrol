@@ -33,7 +33,7 @@ class PlexPatrolDB:
                 email TEXT,
                 phone TEXT,
                 is_whitelisted INTEGER DEFAULT 0,
-                max_streams INTEGER DEFAULT 1,
+                max_streams INTEGER DEFAULT 2,
                 notes TEXT,
                 last_seen TEXT
             )
@@ -157,7 +157,7 @@ class PlexPatrolDB:
             else:
                 # Ajout d'un nouvel utilisateur
                 if max_streams is None:
-                    max_streams = 1  # Valeur par défaut
+                    max_streams = 2  # Valeur par défaut
 
                 cursor.execute(
                     """
