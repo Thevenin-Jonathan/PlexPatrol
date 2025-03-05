@@ -1,5 +1,4 @@
 from datetime import datetime
-import os
 from PyQt5.QtWidgets import (
     QDialog,
     QFormLayout,
@@ -20,8 +19,6 @@ from PyQt5.QtWidgets import (
     QCheckBox,
 )
 from PyQt5.QtCore import Qt
-from utils import send_telegram_notification
-from core import get_plex_users
 
 
 class ConfigDialog(QDialog):
