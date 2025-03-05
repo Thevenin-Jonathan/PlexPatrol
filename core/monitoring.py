@@ -48,7 +48,7 @@ class StreamMonitor(QThread):
         file_handler = logging.FileHandler(
             os.path.join(logs_path, "stream_monitor.log"), encoding="utf-8"
         )
-        formatter = logging.Formatter("%(asctime)s - %(levellevel)s - %(message)s")
+        formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
         file_handler.setFormatter(formatter)
         self.logger.addHandler(file_handler)
 
