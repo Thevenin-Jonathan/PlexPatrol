@@ -251,6 +251,38 @@ class PlexPatrolDB:
             print(f"Erreur lors de la suppression de l'utilisateur: {str(e)}")
             return False
 
+    def get_user_max_streams(self, user_id):
+        """
+        Récupère la limite de flux maximale pour un utilisateur spécifique
+
+        Args:
+            user_id (str): ID de l'utilisateur Plex
+
+        Returns:
+            int|None: Limite de flux max si définie, None sinon
+        """
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+
+            # Récupérer la limite de flux maximale pour cet utilisateur
+            cursor.execute(
+                "SELECT max_streams FROM plex_users WHERE id = ?", (user_id,)
+            )
+
+            result = cursor.fetchone()
+            conn.close()
+
+            # Si une limite est définie, la retourner, sinon retourner None
+            if result and result[0] is not None:
+                return int(result[0])
+            return None
+        except Exception as e:
+            logging.error(
+                f"Erreur lors de la récupération de la limite de flux: {str(e)}"
+            )
+            return None
+
     def record_session(
         self,
         user_id,
