@@ -314,6 +314,37 @@ class PlexPatrolDB:
             )
             return False
 
+    def set_user_whitelist_status(self, user_id, is_whitelisted):
+        """
+        Définit le statut whitelist d'un utilisateur
+
+        Args:
+            user_id (str): ID de l'utilisateur Plex
+            is_whitelisted (bool): True pour ajouter à la whitelist, False sinon
+
+        Returns:
+            bool: True si réussi, False sinon
+        """
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+
+            whitelist_value = 1 if is_whitelisted else 0
+
+            cursor.execute(
+                "UPDATE plex_users SET is_whitelisted = ? WHERE user_id = ?",
+                (whitelist_value, user_id),
+            )
+
+            conn.commit()
+            conn.close()
+            return True
+        except Exception as e:
+            logging.error(
+                f"Erreur lors de la mise à jour du statut whitelist: {str(e)}"
+            )
+            return False
+
     def record_session(
         self,
         user_id,
