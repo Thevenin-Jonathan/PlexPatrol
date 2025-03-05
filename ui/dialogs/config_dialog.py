@@ -195,52 +195,9 @@ class ConfigDialog(QDialog):
 
     def accept(self):
         """Enregistrer les modifications et fermer le dialogue"""
-        import os
+        # Supprimer tout le code qui manipule le fichier .env
 
-        # Mettre à jour les variables d'environnement pour les données sensibles
-        # et les écrire dans .env
-        from utils.helpers import get_app_path
-
-        env_file_path = os.path.join(get_app_path(), ".env")
-        env_contents = []
-
-        # Lire le fichier .env existant s'il existe
-        if os.path.exists(env_file_path):
-            with open(env_file_path, "r", encoding="utf-8") as f:
-                env_contents = f.readlines()
-
-        # Créer un dictionnaire pour les variables d'environnement actuelles
-        env_vars = {}
-        for line in env_contents:
-            line = line.strip()
-            if line and not line.startswith("#"):
-                parts = line.split("=", 1)
-                if len(parts) == 2:
-                    env_vars[parts[0]] = parts[1]
-
-        # Mettre à jour les variables avec les nouvelles valeurs
-        env_vars["PLEX_SERVER_URL"] = self.server_url.text()
-        env_vars["PLEX_TOKEN"] = self.plex_token.text()
-        env_vars["TELEGRAM_BOT_TOKEN"] = self.telegram_token.text()
-        env_vars["TELEGRAM_GROUP_ID"] = self.telegram_group.text()
-
-        # Écrire le fichier .env mis à jour
-        with open(env_file_path, "w", encoding="utf-8") as f:
-            f.write("# Configuration PlexPatrol\n")
-            f.write(
-                "# Généré le " + datetime.now().strftime("%Y-%m-%d %H:%M:%S") + "\n\n"
-            )
-
-            # Écrire les variables sensibles
-            f.write("# Serveur Plex\n")
-            f.write(f"PLEX_SERVER_URL={env_vars['PLEX_SERVER_URL']}\n")
-            f.write(f"PLEX_TOKEN={env_vars['PLEX_TOKEN']}\n\n")
-
-            f.write("# Telegram\n")
-            f.write(f"TELEGRAM_BOT_TOKEN={env_vars['TELEGRAM_BOT_TOKEN']}\n")
-            f.write(f"TELEGRAM_GROUP_ID={env_vars['TELEGRAM_GROUP_ID']}\n")
-
-        # Mettre à jour la configuration dans la base de données
+        # À la place, mettre à jour directement la configuration dans la base
         self.config_manager.set("plex_server.url", self.server_url.text())
         self.config_manager.set("plex_server.token", self.plex_token.text())
         self.config_manager.set(
@@ -262,11 +219,6 @@ class ConfigDialog(QDialog):
         self.config_manager.set("telegram.enabled", self.telegram_enabled.isChecked())
         self.config_manager.set("telegram.bot_token", self.telegram_token.text())
         self.config_manager.set("telegram.group_id", self.telegram_group.text())
-
-        # Recharger les variables d'environnement pour les prendre en compte immédiatement
-        from dotenv import load_dotenv
-
-        load_dotenv(override=True)
 
         # Accepter le dialogue
         super().accept()

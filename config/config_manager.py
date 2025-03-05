@@ -2,8 +2,6 @@ import os
 import json
 import logging
 import sqlite3
-from datetime import datetime
-from dotenv import load_dotenv
 from utils import get_app_path
 
 
@@ -20,7 +18,6 @@ class ConfigManager:
 
     def _initialize(self):
         """Initialisation du gestionnaire de configuration"""
-        load_dotenv(override=True)
         self.db_path = os.path.join(get_app_path(), "data", "plexpatrol.db")
 
         # Vérifie si le répertoire data existe, sinon le crée
@@ -119,21 +116,6 @@ class ConfigManager:
             },
         }
 
-        # Injecter les variables d'environnement
-        if os.getenv("PLEX_SERVER_URL"):
-            default_config["plex_server.url"]["value"] = os.getenv("PLEX_SERVER_URL")
-        if os.getenv("PLEX_TOKEN"):
-            default_config["plex_server.token"]["value"] = os.getenv("PLEX_TOKEN")
-        if os.getenv("TELEGRAM_BOT_TOKEN"):
-            default_config["telegram.bot_token"]["value"] = os.getenv(
-                "TELEGRAM_BOT_TOKEN"
-            )
-            default_config["telegram.enabled"]["value"] = "True"
-        if os.getenv("TELEGRAM_GROUP_ID"):
-            default_config["telegram.group_id"]["value"] = os.getenv(
-                "TELEGRAM_GROUP_ID"
-            )
-
         # Insérer la configuration par défaut
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
@@ -152,7 +134,6 @@ class ConfigManager:
 
         conn.commit()
         conn.close()
-        print("Configuration par défaut initialisée dans la base de données")
 
     def _load_config_to_cache(self):
         """Charge la configuration depuis la BD vers le cache"""
@@ -396,22 +377,82 @@ class ConfigManager:
 
         return True
 
+    def first_time_setup(self):
+        """Configuration initiale si aucune donnée n'est présente"""
+        from PyQt5.QtWidgets import (
+            QDialog,
+            QVBoxLayout,
+            QFormLayout,
+            QLineEdit,
+            QDialogButtonBox,
+            QLabel,
+            QMessageBox,
+        )
+
+        # Vérifier si des configurations essentielles sont manquantes
+        plex_url = self.get("plex_server.url")
+        plex_token = self.get("plex_server.token")
+
+        logging.info(
+            f"Vérification de la configuration - URL: {plex_url}, Token présent: {'Oui' if plex_token else 'Non'}"
+        )
+
+        if (
+            plex_url
+            and plex_token
+            and plex_url != "http://localhost:32400"
+            and plex_token != ""
+        ):
+            logging.info("Configuration déjà présente, skip du dialogue")
+            return True
+
+        logging.info("Configuration manquante, affichage du dialogue")
+
+        dialog = QDialog()
+        dialog.setWindowTitle("Configuration initiale PlexPatrol")
+        layout = QVBoxLayout(dialog)
+
+        info = QLabel(
+            "Bienvenue dans PlexPatrol ! Veuillez configurer l'accès à votre serveur Plex."
+        )
+        layout.addWidget(info)
+
+        form = QFormLayout()
+        url_edit = QLineEdit("http://localhost:32400")
+        token_edit = QLineEdit()
+
+        form.addRow("URL du serveur Plex:", url_edit)
+        form.addRow("Token Plex:", token_edit)
+
+        layout.addLayout(form)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        layout.addWidget(buttons)
+
+        if dialog.exec_() == QDialog.Accepted:
+            self.set("plex_server.url", url_edit.text())
+            self.set("plex_server.token", token_edit.text())
+            return True
+        else:
+            QMessageBox.warning(
+                None,
+                "Configuration incomplète",
+                "L'application pourrait ne pas fonctionner correctement.",
+            )
+            return False
+
     # Propriétés pour accéder facilement aux paramètres communs
     @property
     def plex_server_url(self):
         """URL du serveur Plex"""
-        url = os.getenv("PLEX_SERVER_URL")
-        if not url:
-            url = self.get("plex_server.url", "http://localhost:32400")
-        return url
+        return self.get("plex_server.url", "http://localhost:32400")
 
     @property
     def plex_token(self):
         """Token d'authentification Plex"""
-        token = os.getenv("PLEX_TOKEN")
-        if not token:
-            token = self.get("plex_server.token", "")
-        return token
+        return self.get("plex_server.token", "")
 
     @property
     def check_interval(self):
@@ -439,197 +480,13 @@ class ConfigManager:
     @property
     def telegram_bot_token(self):
         """Token du bot Telegram"""
-        token = os.getenv("TELEGRAM_BOT_TOKEN")
-        if not token:
-            token = self.get("telegram.bot_token", "")
-        return token
+        return self.get("telegram.bot_token", "")
 
     @property
     def telegram_group_id(self):
         """ID du groupe Telegram"""
-        group_id = os.getenv("TELEGRAM_GROUP_ID")
-        if not group_id:
-            group_id = self.get("telegram.group_id", "")
-        return group_id
+        return self.get("telegram.group_id", "")
 
 
 # Instance globale
 config = ConfigManager()
-
-
-def initialize_env_file():
-    """
-    Vérifie si le fichier .env existe, sinon guide l'utilisateur pour le créer
-
-    Returns:
-        bool: True si le fichier existe ou a été créé, False sinon
-    """
-    env_path = os.path.join(get_app_path(), ".env")
-
-    # Vérifier si le fichier existe déjà
-    if os.path.exists(env_path):
-        return True
-
-    # Le fichier n'existe pas, proposer de le créer
-    from PyQt5.QtWidgets import (
-        QMessageBox,
-        QDialog,
-        QVBoxLayout,
-        QFormLayout,
-        QLineEdit,
-        QDialogButtonBox,
-        QLabel,
-    )
-
-    msg = QMessageBox()
-    msg.setIcon(QMessageBox.Information)
-    msg.setWindowTitle("Configuration initiale")
-    msg.setText("Certains paramètres importants ne sont pas configurés.")
-    msg.setInformativeText(
-        "L'application a besoin du token API et de l'URL du serveur Plex.\n"
-        "Voulez-vous les configurer maintenant?"
-    )
-
-    # Créer des boutons personnalisés en français
-    oui_button = msg.addButton("Oui", QMessageBox.YesRole)
-    non_button = msg.addButton("Non", QMessageBox.NoRole)
-
-    msg.exec_()
-
-    # Vérifier quel bouton a été cliqué
-    if msg.clickedButton() == oui_button:
-        # Créer un dialogue pour obtenir les informations nécessaires
-        dialog = QDialog()
-        dialog.setWindowTitle("Configuration des paramètres sensibles")
-        layout = QVBoxLayout(dialog)
-
-        # Ajouter une explication
-        info_label = QLabel(
-            "Ces informations seront stockées uniquement sur votre machine."
-        )
-        layout.addWidget(info_label)
-
-        form = QFormLayout()
-
-        # Champs pour les variables sensibles
-        plex_url = QLineEdit("http://localhost:32400")
-        plex_token = QLineEdit()
-        telegram_token = QLineEdit()
-        telegram_group = QLineEdit()
-
-        form.addRow("URL du serveur Plex:", plex_url)
-        form.addRow("Token Plex:", plex_token)
-        form.addRow("Token du bot Telegram (optionnel):", telegram_token)
-        form.addRow("ID du groupe Telegram (optionnel):", telegram_group)
-
-        layout.addLayout(form)
-
-        # Ajouter un lien pour obtenir un token Plex
-        help_label = QLabel(
-            "Pour obtenir votre token Plex, consultez <a href='https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/'>cet article</a>"
-        )
-        help_label.setOpenExternalLinks(True)
-        layout.addWidget(help_label)
-
-        # Boutons OK/Annuler
-        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        buttons.accepted.connect(dialog.accept)
-        buttons.rejected.connect(dialog.reject)
-        layout.addWidget(buttons)
-
-        if dialog.exec_() == QDialog.Accepted:
-            # Créer le fichier .env avec les informations fournies
-            try:
-                with open(env_path, "w", encoding="utf-8") as f:
-                    f.write("# Configuration PlexPatrol\n")
-                    f.write(
-                        f"# Généré le {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
-                    )
-
-                    f.write("# Serveur Plex\n")
-                    f.write(f"PLEX_SERVER_URL={plex_url.text()}\n")
-                    f.write(f"PLEX_TOKEN={plex_token.text()}\n\n")
-
-                    f.write("# Telegram\n")
-                    f.write(f"TELEGRAM_BOT_TOKEN={telegram_token.text()}\n")
-                    f.write(f"TELEGRAM_GROUP_ID={telegram_group.text()}\n")
-
-                # Recharger les variables d'environnement
-                from dotenv import load_dotenv
-
-                load_dotenv(override=True)
-
-                # Mettre à jour la configuration dans la base de données
-                config = ConfigManager()
-
-                # Plex
-                if plex_url.text():
-                    config.set("plex_server.url", plex_url.text())
-                if plex_token.text():
-                    config.set("plex_server.token", plex_token.text())
-
-                # Telegram
-                if telegram_token.text():
-                    config.set("telegram.bot_token", telegram_token.text())
-                    config.set("telegram.enabled", True)
-                if telegram_group.text():
-                    config.set("telegram.group_id", telegram_group.text())
-
-                QMessageBox.information(
-                    None,
-                    "Configuration réussie",
-                    "Le fichier .env a été créé avec succès.",
-                )
-                return True
-            except Exception as e:
-                QMessageBox.critical(
-                    None, "Erreur", f"Impossible de créer le fichier .env: {str(e)}"
-                )
-                return False
-        else:
-            return False
-    else:
-        # L'utilisateur a refusé de créer le fichier
-        QMessageBox.warning(
-            None,
-            "Configuration incomplète",
-            "Certaines fonctionnalités peuvent ne pas fonctionner correctement.",
-        )
-        return False
-
-
-def validate_env_variables():
-    """Vérifie que les variables d'environnement nécessaires sont présentes et les applique à la configuration"""
-    import os
-    from PyQt5.QtWidgets import QMessageBox
-
-    config_manager = ConfigManager()
-    missing = []
-
-    if not os.getenv("PLEX_SERVER_URL") and not config_manager.get("plex_server.url"):
-        missing.append("PLEX_SERVER_URL")
-
-    if not os.getenv("PLEX_TOKEN") and not config_manager.get("plex_server.token"):
-        missing.append("PLEX_TOKEN")
-
-    if missing:
-        QMessageBox.warning(
-            None,
-            "Configuration incomplète",
-            f"Les informations de configuration suivantes sont manquantes: {', '.join(missing)}\n"
-            "Certaines fonctionnalités pourraient ne pas fonctionner correctement.",
-        )
-        return False
-
-    # Appliquer les variables d'environnement en priorité, si présentes
-    if os.getenv("PLEX_SERVER_URL"):
-        config_manager.set("plex_server.url", os.getenv("PLEX_SERVER_URL"))
-    if os.getenv("PLEX_TOKEN"):
-        config_manager.set("plex_server.token", os.getenv("PLEX_TOKEN"))
-    if os.getenv("TELEGRAM_BOT_TOKEN"):
-        config_manager.set("telegram.bot_token", os.getenv("TELEGRAM_BOT_TOKEN"))
-        config_manager.set("telegram.enabled", True)
-    if os.getenv("TELEGRAM_GROUP_ID"):
-        config_manager.set("telegram.group_id", os.getenv("TELEGRAM_GROUP_ID"))
-
-    return True

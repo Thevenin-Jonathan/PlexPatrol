@@ -42,11 +42,22 @@ class PlexPatrolApp(QMainWindow):
         )
         self.resize(1400, 800)
 
-        # Vérifier et initialiser le fichier .env si nécessaire
-        from config.config_manager import initialize_env_file, validate_env_variables
+        # Configuration initiale si nécessaire
+        from config.config_manager import config
 
-        initialize_env_file()
-        validate_env_variables()
+        if not config.first_time_setup():
+            # Si l'utilisateur annule la configuration initiale, proposer de quitter
+            reply = QMessageBox.question(
+                self,
+                "Configuration incomplète",
+                "La configuration est incomplète. Voulez-vous quitter l'application ?",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No,
+            )
+            if reply == QMessageBox.Yes:
+                # Fermer immédiatement l'application
+                self.close()
+                return
 
         # Charger les statistiques
         self.stats = self.load_stats()

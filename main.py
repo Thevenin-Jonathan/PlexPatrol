@@ -2,13 +2,9 @@ import sys
 from PyQt5.QtWidgets import QApplication
 from ui.main_window import PlexPatrolApp
 from utils.logger import setup_logging
-from dotenv import load_dotenv
 
 # Initialiser le logging
 setup_logging()
-
-# Recharger les variables d'environnement
-load_dotenv(override=True)
 
 
 def main():
