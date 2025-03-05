@@ -13,7 +13,7 @@ def migrate_data_to_db():
         db = PlexPatrolDB()
 
         # Charger la configuration existante
-        whitelist_ids = config.get("rules", {}).get("whitelist", [])
+        whitelist_ids = config.get("rules.whitelist", [])
 
         # Charger les statistiques existantes
         stats_path = os.path.join(get_app_path(), "stats.json")
