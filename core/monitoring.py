@@ -262,16 +262,30 @@ class StreamMonitor(QThread):
                             f"Stream arrêté pour {username} sur {platform}", "SUCCESS"
                         )
 
-                        # Mettre à jour les statistiques
-                        stats = load_stats()
-                        stats = update_user_stats(
-                            stats,
-                            username,
-                            stream_count=len(streams),
-                            stream_killed=True,
-                            platform=platform,
-                        )
-                        save_stats(stats)
+    def stop_sessions(self, sessions_to_stop, user_id, username, all_streams):
+        """Helper method to stop sessions and update statistics"""
+        for stream in sessions_to_stop:
+            session_id = stream[0]
+            platform = stream[5]
+            success = self.stop_stream(user_id, username, session_id)
+
+            if success:
+                self.logger.info(f"Stream {session_id} arrêté pour {username}")
+                self.new_log.emit(
+                    f"Stream arrêté pour {username} sur {platform}",
+                    "SUCCESS",
+                )
+
+                # Mettre à jour les statistiques
+                stats = load_stats()
+                stats = update_user_stats(
+                    stats,
+                    username,
+                    stream_count=len(all_streams),
+                    stream_killed=True,
+                    platform=platform,
+                )
+                save_stats(stats)
 
     def stop_stream(self, user_id, username, session_id):
         """Arrêter un stream spécifique"""
