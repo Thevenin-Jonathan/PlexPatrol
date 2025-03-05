@@ -8,6 +8,7 @@ import requests
 from PyQt5.QtCore import QThread, pyqtSignal
 from utils import get_app_path
 from data import PlexPatrolDB, load_stats, save_stats, update_user_stats
+from utils.constants import LogMessages, ConfigKeys, Paths
 
 
 class StreamMonitor(QThread):
@@ -52,8 +53,9 @@ class StreamMonitor(QThread):
         self.logger.addHandler(file_handler)
 
     def run(self):
-        """Méthode principale exécutée par le thread"""
-        self.new_log.emit("Démarrage de la surveillance des flux Plex", "INFO")
+        """Démarrer la surveillance des flux Plex en arrière-plan"""
+        self.is_running = True
+        self.new_log.emit(LogMessages.MONITOR_START, "INFO")
 
         while self.is_running:
             try:
@@ -72,7 +74,7 @@ class StreamMonitor(QThread):
         self.new_log.emit("Arrêt de la surveillance des flux Plex", "INFO")
 
     def check_sessions(self):
-        """Vérifier les sessions Plex actives"""
+        """Vérifier les sessions actives et agir si nécessaire"""
         try:
             # Récupérer les sessions actives
             xml_data = self.get_active_sessions()
@@ -100,10 +102,7 @@ class StreamMonitor(QThread):
                     )
 
         except Exception as e:
-            self.logger.error(f"Erreur lors de la vérification des sessions: {str(e)}")
-            self.new_log.emit(
-                f"Erreur lors de la vérification des sessions: {str(e)}", "ERROR"
-            )
+            self.new_log.emit(LogMessages.SESSION_ERROR.format(error=str(e)), "ERROR")
             self.consecutive_errors += 1
 
             if self.consecutive_errors >= 3:
@@ -388,6 +387,7 @@ class StreamMonitor(QThread):
         return self.is_paused
 
     def stop(self):
-        """Arrêter le thread proprement"""
+        """Arrêter la surveillance"""
         self.is_running = False
+        self.new_log.emit(LogMessages.MONITOR_STOP, "INFO")
         self.wait()

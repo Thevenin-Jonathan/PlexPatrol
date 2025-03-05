@@ -19,13 +19,14 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt
 from data.database import PlexPatrolDB
 from ui.widgets.phone_field import PhoneNumberEdit
+from utils.constants import UIMessages, TableColumns, LogMessages
 
 
 class UserManagementDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.db = PlexPatrolDB()
-        self.setWindowTitle("Gestion des utilisateurs")
+        self.setWindowTitle(UIMessages.USER_DIALOG_TITLE)
         self.setMinimumSize(700, 500)
         self.setup_ui()
 
@@ -33,23 +34,12 @@ class UserManagementDialog(QDialog):
         layout = QVBoxLayout(self)
 
         # Tableau des utilisateurs
-        group_box = QGroupBox("Utilisateurs")
+        group_box = QGroupBox(UIMessages.GROUP_USERS)
         group_layout = QVBoxLayout(group_box)
 
         self.users_table = QTableWidget()
         self.users_table.setColumnCount(8)
-        self.users_table.setHorizontalHeaderLabels(
-            [
-                "Nom d'utilisateur",
-                "Téléphone",
-                "Flux max",
-                "Liste blanche",
-                "Sessions totales",
-                "Streams arrêtés",
-                "Dernière activité",
-                "Actions",
-            ]
-        )
+        self.users_table.setHorizontalHeaderLabels(TableColumns.USERS)
         self.users_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.users_table.setSelectionBehavior(QTableWidget.SelectRows)
         self.users_table.setSelectionMode(QTableWidget.SingleSelection)
@@ -62,37 +52,37 @@ class UserManagementDialog(QDialog):
         layout.addWidget(group_box)
 
         # Détails de l'utilisateur
-        details_box = QGroupBox("Détails de l'utilisateur")
+        details_box = QGroupBox(UIMessages.GROUP_USER_DETAILS)
         form_layout = QGridLayout(details_box)
 
         # Ligne 1
-        form_layout.addWidget(QLabel("Nom d'utilisateur:"), 0, 0)
+        form_layout.addWidget(QLabel(UIMessages.LABEL_USERNAME), 0, 0)
         self.username_edit = QLineEdit()
         form_layout.addWidget(self.username_edit, 0, 1)
 
-        form_layout.addWidget(QLabel("Nombre max de flux:"), 0, 2)
+        form_layout.addWidget(QLabel(UIMessages.LABEL_MAX_STREAMS), 0, 2)
         self.max_streams_spin = QSpinBox()
         self.max_streams_spin.setRange(1, 10)
         form_layout.addWidget(self.max_streams_spin, 0, 3)
 
         # Ligne 2
-        form_layout.addWidget(QLabel("E-mail:"), 1, 0)
+        form_layout.addWidget(QLabel(UIMessages.LABEL_EMAIL), 1, 0)
         self.email_edit = QLineEdit()
         form_layout.addWidget(self.email_edit, 1, 1)
 
-        form_layout.addWidget(QLabel("Téléphone:"), 1, 2)
+        form_layout.addWidget(QLabel(UIMessages.LABEL_PHONE), 1, 2)
         # Utiliser notre classe personnalisée pour le champ téléphone
         self.phone_edit = PhoneNumberEdit()
-        self.phone_edit.setPlaceholderText("0601020304")
+        self.phone_edit.setPlaceholderText(UIMessages.PLACEHOLDER_PHONE)
         form_layout.addWidget(self.phone_edit, 1, 3)
 
         # Ligne 3
-        form_layout.addWidget(QLabel("Liste blanche:"), 2, 0)
+        form_layout.addWidget(QLabel(UIMessages.LABEL_WHITELIST), 2, 0)
         self.whitelist_check = QCheckBox()
         form_layout.addWidget(self.whitelist_check, 2, 1)
 
         # Ligne 4
-        form_layout.addWidget(QLabel("Notes:"), 3, 0)
+        form_layout.addWidget(QLabel(UIMessages.LABEL_NOTES), 3, 0)
         self.notes_edit = QLineEdit()
         form_layout.addWidget(self.notes_edit, 3, 1, 1, 3)
 
@@ -101,25 +91,25 @@ class UserManagementDialog(QDialog):
         # Boutons d'action
         buttons_layout = QHBoxLayout()
 
-        self.save_btn = QPushButton("Enregistrer les modifications")
+        self.save_btn = QPushButton(UIMessages.BTN_SAVE)
         self.save_btn.clicked.connect(self.save_user)
         self.save_btn.setEnabled(False)
         buttons_layout.addWidget(self.save_btn)
 
-        refresh_btn = QPushButton("Actualiser")
+        refresh_btn = QPushButton(UIMessages.BTN_REFRESH)
         refresh_btn.clicked.connect(self.load_users)
         buttons_layout.addWidget(refresh_btn)
 
-        migrate_btn = QPushButton("Migrer les données existantes")
+        migrate_btn = QPushButton(UIMessages.BTN_MIGRATE)
         migrate_btn.clicked.connect(self.migrate_data)
         buttons_layout.addWidget(migrate_btn)
 
-        close_btn = QPushButton("Fermer")
+        close_btn = QPushButton(UIMessages.BTN_CLOSE)
         close_btn.clicked.connect(self.accept)
         buttons_layout.addWidget(close_btn)
 
         # Ajout d'un bouton pour synchroniser avec Plex
-        sync_btn = QPushButton("Synchroniser avec Plex")
+        sync_btn = QPushButton(UIMessages.BTN_SYNC)
         sync_btn.clicked.connect(self.sync_with_plex)
         buttons_layout.addWidget(sync_btn)
 
@@ -237,13 +227,11 @@ class UserManagementDialog(QDialog):
                     notes=notes,
                 ):
                     QMessageBox.information(
-                        self, "Succès", "Utilisateur mis à jour avec succès!"
+                        self, UIMessages.TITLE_SUCCESS, UIMessages.USER_UPDATED
                     )
                     self.load_users()  # Recharger les données
                 else:
-                    QMessageBox.warning(
-                        self, "Erreur", "Impossible de mettre à jour l'utilisateur"
-                    )
+                    QMessageBox.warning(self, "Erreur", UIMessages.ERROR_UPDATE_USER)
 
     def delete_user(self):
         """Supprimer un utilisateur de la base de données et de la configuration"""
@@ -252,9 +240,8 @@ class UserManagementDialog(QDialog):
 
         reply = QMessageBox.question(
             self,
-            "Confirmation de suppression",
-            f"Voulez-vous vraiment supprimer l'utilisateur '{username}'?\n"
-            "Cette action supprimera également toutes ses statistiques associées.",
+            UIMessages.TITLE_CONFIRMATION,
+            UIMessages.CONFIRM_DELETE_USER.format(username=username),
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No,
         )
@@ -278,23 +265,22 @@ class UserManagementDialog(QDialog):
 
                 QMessageBox.information(
                     self,
-                    "Suppression réussie",
-                    f"L'utilisateur '{username}' a été supprimé avec succès.",
+                    UIMessages.TITLE_SUCCESS,
+                    UIMessages.USER_DELETED.format(username=username),
                 )
             except Exception as e:
                 QMessageBox.critical(
                     self,
                     "Erreur de suppression",
-                    f"Une erreur s'est produite lors de la suppression de l'utilisateur: {str(e)}",
+                    UIMessages.USER_DELETE_ERROR.format(error=str(e)),
                 )
 
     def migrate_data(self):
         """Migrer les données depuis les fichiers JSON vers la base de données"""
         reply = QMessageBox.question(
             self,
-            "Confirmation",
-            "Voulez-vous migrer les données existantes vers la base de données?\n"
-            "Cette opération peut prendre du temps en fonction du volume de données.",
+            UIMessages.TITLE_CONFIRMATION,
+            UIMessages.CONFIRM_MIGRATION,
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No,
         )
@@ -306,12 +292,12 @@ class UserManagementDialog(QDialog):
 
             if success:
                 QMessageBox.information(
-                    self, "Succès", "Migration des données terminée!"
+                    self, UIMessages.TITLE_SUCCESS, UIMessages.MIGRATION_SUCCESS
                 )
                 self.load_users()  # Recharger les utilisateurs
             else:
                 QMessageBox.warning(
-                    self, "Erreur", "Problème lors de la migration des données."
+                    self, UIMessages.TITLE_ERROR, UIMessages.MIGRATION_ERROR
                 )
 
     def sync_with_plex(self):
@@ -320,15 +306,14 @@ class UserManagementDialog(QDialog):
             QMessageBox.warning(
                 self,
                 "Synchronisation impossible",
-                "Aucun utilisateur Plex n'a été trouvé. Vérifiez votre connexion au serveur.",
+                UIMessages.ERROR_NO_PLEX_USERS,
             )
             return
 
         reply = QMessageBox.question(
             self,
             "Confirmation",
-            f"Voulez-vous synchroniser {len(self.parent().plex_users)} utilisateurs depuis Plex?\n"
-            "Les utilisateurs existants seront conservés, mais leurs limites seront mises à jour si nécessaire.",
+            UIMessages.CONFIRM_SYNC_USERS.format(count=len(self.parent().plex_users)),
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No,
         )
@@ -355,6 +340,6 @@ class UserManagementDialog(QDialog):
 
             QMessageBox.information(
                 self,
-                "Synchronisation réussie",
-                f"{updated_count} utilisateurs synchronisés avec Plex.",
+                UIMessages.TITLE_SUCCESS,
+                UIMessages.SYNC_SUCCESS.format(count=updated_count),
             )

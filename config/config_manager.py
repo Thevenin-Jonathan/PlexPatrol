@@ -3,6 +3,7 @@ import json
 import logging
 import sqlite3
 from utils import get_app_path
+from utils.constants import UIMessages, ConfigKeys, Defaults, Paths
 
 
 class ConfigManager:
@@ -66,32 +67,32 @@ class ConfigManager:
 
         # Configuration par défaut
         default_config = {
-            "plex_server.url": {
-                "value": "http://localhost:32400",
+            ConfigKeys.PLEX_SERVER_URL: {
+                "value": Defaults.PLEX_SERVER_URL,
                 "type": "str",
                 "category": "plex",
                 "description": "URL du serveur Plex",
             },
-            "plex_server.token": {
+            ConfigKeys.PLEX_TOKEN: {
                 "value": "",
                 "type": "str",
                 "category": "plex",
                 "description": "Token d'authentification Plex",
             },
-            "plex_server.check_interval": {
-                "value": "30",
+            ConfigKeys.CHECK_INTERVAL: {
+                "value": str(Defaults.CHECK_INTERVAL),
                 "type": "int",
                 "category": "plex",
                 "description": "Intervalle de vérification en secondes",
             },
-            "rules.max_streams": {
-                "value": "2",
+            ConfigKeys.MAX_STREAMS: {
+                "value": str(Defaults.MAX_STREAMS),
                 "type": "int",
                 "category": "rules",
                 "description": "Nombre maximum de flux simultanés par défaut",
             },
-            "rules.termination_message": {
-                "value": "Votre abonnement ne vous permet pas la lecture sur plusieurs écrans.",
+            ConfigKeys.TERMINATION_MESSAGE: {
+                "value": Defaults.TERMINATION_MESSAGE,
                 "type": "str",
                 "category": "rules",
                 "description": "Message affiché lors de la terminaison d'un flux",
@@ -409,20 +410,18 @@ class ConfigManager:
         logging.info("Configuration manquante, affichage du dialogue")
 
         dialog = QDialog()
-        dialog.setWindowTitle("Configuration initiale PlexPatrol")
+        dialog.setWindowTitle(UIMessages.FIRST_TIME_SETUP_TITLE)
         layout = QVBoxLayout(dialog)
 
-        info = QLabel(
-            "Bienvenue dans PlexPatrol ! Veuillez configurer l'accès à votre serveur Plex."
-        )
+        info = QLabel(UIMessages.FIRST_TIME_SETUP_WELCOME)
         layout.addWidget(info)
 
         form = QFormLayout()
-        url_edit = QLineEdit("http://localhost:32400")
+        url_edit = QLineEdit(Defaults.PLEX_SERVER_URL)
         token_edit = QLineEdit()
 
-        form.addRow("URL du serveur Plex:", url_edit)
-        form.addRow("Token Plex:", token_edit)
+        form.addRow(UIMessages.CONFIG_SERVER_URL_LABEL, url_edit)
+        form.addRow(UIMessages.CONFIG_TOKEN_LABEL, token_edit)
 
         layout.addLayout(form)
 
@@ -432,14 +431,12 @@ class ConfigManager:
         layout.addWidget(buttons)
 
         if dialog.exec_() == QDialog.Accepted:
-            self.set("plex_server.url", url_edit.text())
-            self.set("plex_server.token", token_edit.text())
+            self.set(ConfigKeys.PLEX_SERVER_URL, url_edit.text())
+            self.set(ConfigKeys.PLEX_TOKEN, token_edit.text())
             return True
         else:
             QMessageBox.warning(
-                None,
-                "Configuration incomplète",
-                "L'application pourrait ne pas fonctionner correctement.",
+                None, "Configuration incomplète", UIMessages.CONFIG_INCOMPLETE_WARNING
             )
             return False
 

@@ -29,6 +29,14 @@ from ui.dialogs import ConfigDialog
 from ui.dialogs import StatisticsDialog
 from config.config_manager import config
 from utils import get_app_path
+from utils.constants import (
+    LogMessages,
+    UIMessages,
+    LogLevels,
+    TableColumns,
+    Paths,
+    ConfigKeys,
+)
 
 
 class PlexPatrolApp(QMainWindow):
@@ -36,9 +44,9 @@ class PlexPatrolApp(QMainWindow):
 
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("PlexPatrol - Moniteur de flux Plex")
+        self.setWindowTitle(UIMessages.MAIN_WINDOW_TITLE)
         self.setWindowIcon(
-            QIcon(os.path.join(get_app_path(), "assets", "plexpatrol_icon.png"))
+            QIcon(os.path.join(get_app_path(), Paths.ASSETS, Paths.ICON))
         )
         self.resize(1400, 800)
 
@@ -50,7 +58,7 @@ class PlexPatrolApp(QMainWindow):
             reply = QMessageBox.question(
                 self,
                 "Configuration incomplète",
-                "La configuration est incomplète. Voulez-vous quitter l'application ?",
+                UIMessages.CONFIG_INCOMPLETE,
                 QMessageBox.Yes | QMessageBox.No,
                 QMessageBox.No,
             )
@@ -193,8 +201,8 @@ class PlexPatrolApp(QMainWindow):
         layout = QVBoxLayout(tab)
 
         # Tableau des sessions actives
-        group_box = QGroupBox("Sessions actives")
-        group_layout = QVBoxLayout(group_box)
+        sessions_group = QGroupBox(UIMessages.GROUP_ACTIVE_SESSIONS)
+        group_layout = QVBoxLayout(sessions_group)
 
         self.sessions_table = QTableWidget()
         self.sessions_table.setColumnCount(8)
@@ -210,7 +218,7 @@ class PlexPatrolApp(QMainWindow):
             "IP",
             "Actions",
         ]
-        self.sessions_table.setHorizontalHeaderLabels(self.column_names)
+        self.sessions_table.setHorizontalHeaderLabels(TableColumns.SESSIONS)
 
         # Configuration par défaut de la visibilité des colonnes (toutes visibles)
         self.column_visibility = [True] * len(self.column_names)
@@ -240,7 +248,7 @@ class PlexPatrolApp(QMainWindow):
 
         group_layout.addLayout(buttons_layout)
 
-        layout.addWidget(group_box)
+        layout.addWidget(sessions_group)
 
         return tab
 
@@ -287,8 +295,11 @@ class PlexPatrolApp(QMainWindow):
 
         tab = QWidget()
         layout = QVBoxLayout(tab)
+        logs_group = QGroupBox(UIMessages.GROUP_LOGS)
+        logs_layout = QVBoxLayout(logs_group)
         logs_widget = LogsWidget()
-        layout.addWidget(logs_widget)
+        logs_layout.addWidget(logs_widget)
+        layout.addWidget(logs_group)
         self.log_text = logs_widget.log_text  # Pour maintenir la compatibilité
 
         return tab
@@ -299,8 +310,8 @@ class PlexPatrolApp(QMainWindow):
         layout = QVBoxLayout(tab)
 
         # Tableau des statistiques
-        group_box = QGroupBox("Statistiques des arrêts de flux")
-        group_layout = QVBoxLayout(group_box)
+        stats_group = QGroupBox(UIMessages.GROUP_STATS)
+        group_layout = QVBoxLayout(stats_group)
 
         self.stats_table = QTableWidget()
         self.stats_table.setColumnCount(5)
@@ -320,7 +331,7 @@ class PlexPatrolApp(QMainWindow):
 
         group_layout.addWidget(self.stats_table)
 
-        layout.addWidget(group_box)
+        layout.addWidget(stats_group)
 
         # Boutons d'action
         buttons_layout = QHBoxLayout()
@@ -432,7 +443,7 @@ class PlexPatrolApp(QMainWindow):
                 self.sessions_table.setItem(row, 6, QTableWidgetItem(ip_address))
 
                 # Ajouter un bouton pour arrêter le stream
-                stop_button = QPushButton("Arrêter")
+                stop_button = QPushButton(UIMessages.BTN_STOP)
                 stop_button.setProperty("session_id", session_id)
                 stop_button.setProperty("username", username)
                 stop_button.clicked.connect(self.stop_session)
@@ -506,7 +517,7 @@ class PlexPatrolApp(QMainWindow):
             xml_data = self.stream_monitor.get_active_sessions()
             user_streams = self.stream_monitor.parse_sessions(xml_data)
             self.update_sessions_table(user_streams)
-            self.add_log("Sessions rafraîchies manuellement", "INFO")
+            self.add_log(UIMessages.SESSIONS_REFRESHED, LogLevels.INFO)
         except Exception as e:
             self.add_log(
                 f"Erreur lors du rafraîchissement des sessions: {str(e)}", "ERROR"
@@ -671,10 +682,13 @@ class PlexPatrolApp(QMainWindow):
                         f"{username},{kill_count},{last_kill},{most_used},{kill_rate}\n"
                     )
 
-            self.add_log(f"Statistiques exportées dans {filepath}", "SUCCESS")
+            self.add_log(
+                UIMessages.STATS_EXPORTED.format(filepath=filepath), LogLevels.SUCCESS
+            )
         except Exception as e:
             self.add_log(
-                f"Erreur lors de l'exportation des statistiques: {str(e)}", "ERROR"
+                f"{LogMessages.STATS_EXPORT_ERROR.format(error=str(e))}",
+                LogLevels.ERROR,
             )
 
     def reset_stats(self):
@@ -728,3 +742,37 @@ class PlexPatrolApp(QMainWindow):
 
         dialog = UserManagementDialog(self)
         dialog.exec_()
+
+    def create_actions(self):
+        # Remplacer :
+        self.configure_action = QAction("Configuration...", self)
+
+        # Par :
+        self.configure_action = QAction(UIMessages.MENU_CONFIGURATION, self)
+
+        # Remplacer :
+        self.users_action = QAction("Gestion des utilisateurs...", self)
+
+        # Par :
+        self.users_action = QAction(UIMessages.MENU_USERS, self)
+
+        # Remplacer :
+        self.stats_action = QAction("Statistiques détaillées...", self)
+
+        # Par :
+        self.stats_action = QAction(UIMessages.MENU_STATS, self)
+
+        # Remplacer :
+        self.exit_action = QAction("Quitter", self)
+
+        # Par :
+        self.exit_action = QAction(UIMessages.MENU_EXIT, self)
+
+    def create_menu(self):
+        # Remplacer :
+        menu_bar = self.menuBar()
+        file_menu = menu_bar.addMenu("&Fichier")
+
+        # Par :
+        menu_bar = self.menuBar()
+        file_menu = menu_bar.addMenu(UIMessages.MENU_FILE)

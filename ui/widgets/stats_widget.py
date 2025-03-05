@@ -9,6 +9,7 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import Qt
 from data import load_stats
+from utils.constants import UIMessages, TableColumns, Paths
 
 
 class StatsWidget(QWidget):
@@ -25,16 +26,8 @@ class StatsWidget(QWidget):
 
         # Tableau des statistiques
         self.stats_table = QTableWidget()
-        self.stats_table.setColumnCount(5)
-        self.stats_table.setHorizontalHeaderLabels(
-            [
-                "Utilisateur",
-                "Arrêts de flux",
-                "Dernier arrêt",
-                "Plateforme la plus utilisée",
-                "Taux d'arrêts",
-            ]
-        )
+        self.stats_table.setColumnCount(len(TableColumns.STATS))
+        self.stats_table.setHorizontalHeaderLabels(TableColumns.STATS)
         self.stats_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.stats_table.setSortingEnabled(True)
 
@@ -43,15 +36,15 @@ class StatsWidget(QWidget):
         # Boutons d'action
         buttons_layout = QHBoxLayout()
 
-        refresh_btn = QPushButton("Rafraîchir")
+        refresh_btn = QPushButton(UIMessages.BTN_REFRESH)
         refresh_btn.clicked.connect(self.refresh_stats)
         buttons_layout.addWidget(refresh_btn)
 
-        export_btn = QPushButton("Exporter (CSV)")
+        export_btn = QPushButton(UIMessages.BTN_EXPORT)
         export_btn.clicked.connect(self.export_stats)
         buttons_layout.addWidget(export_btn)
 
-        reset_btn = QPushButton("Réinitialiser")
+        reset_btn = QPushButton(UIMessages.BTN_RESET)
         reset_btn.clicked.connect(self.reset_stats)
         buttons_layout.addWidget(reset_btn)
 
@@ -108,9 +101,11 @@ class StatsWidget(QWidget):
     def export_stats(self):
         """Exporter les statistiques au format CSV"""
         # À implémenter
+        self.add_log(UIMessages.STATS_EXPORTED.format(filepath=filepath))
         pass
 
     def reset_stats(self):
         """Réinitialiser les statistiques"""
         # À implémenter
+        self.add_log(UIMessages.STATS_RESET)
         pass

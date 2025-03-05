@@ -19,6 +19,7 @@ from PyQt5.QtWidgets import (
     QCheckBox,
 )
 from PyQt5.QtCore import Qt
+from utils.constants import UIMessages, ConfigKeys, Defaults
 
 
 class ConfigDialog(QDialog):
@@ -34,7 +35,7 @@ class ConfigDialog(QDialog):
 
     def setup_ui(self):
         """Configurer l'interface utilisateur du dialogue"""
-        self.setWindowTitle("Configuration")
+        self.setWindowTitle(UIMessages.CONFIG_DIALOG_TITLE)
         self.resize(550, 600)
 
         layout = QVBoxLayout(self)
@@ -47,15 +48,15 @@ class ConfigDialog(QDialog):
         server_layout = QFormLayout(server_tab)
 
         self.server_url = QLineEdit()  # Suppression de l'initialisation
-        server_layout.addRow("URL du serveur:", self.server_url)
+        server_layout.addRow(UIMessages.CONFIG_SERVER_URL_LABEL, self.server_url)
 
         self.plex_token = QLineEdit()  # Suppression de l'initialisation
-        server_layout.addRow("Token Plex:", self.plex_token)
+        server_layout.addRow(UIMessages.CONFIG_TOKEN_LABEL, self.plex_token)
 
         self.check_interval = QSpinBox()
         self.check_interval.setRange(10, 300)
         self.check_interval.setSuffix(" secondes")
-        server_layout.addRow("Intervalle de vérification:", self.check_interval)
+        server_layout.addRow(UIMessages.CONFIG_INTERVAL_LABEL, self.check_interval)
 
         # Bouton pour tester la connexion
         test_btn = QPushButton("Tester la connexion")
@@ -71,10 +72,10 @@ class ConfigDialog(QDialog):
         rules_form = QFormLayout()
         self.max_streams = QSpinBox()
         self.max_streams.setRange(1, 10)
-        rules_form.addRow("Nombre max de flux par utilisateur:", self.max_streams)
+        rules_form.addRow(UIMessages.CONFIG_MAX_STREAMS_LABEL, self.max_streams)
 
         self.termination_message = QLineEdit()  # Suppression de l'initialisation
-        rules_form.addRow("Message d'arrêt:", self.termination_message)
+        rules_form.addRow(UIMessages.CONFIG_TERM_MSG_LABEL, self.termination_message)
 
         rules_layout.addLayout(rules_form)
 
@@ -136,16 +137,18 @@ class ConfigDialog(QDialog):
         notif_layout = QFormLayout(notif_tab)
 
         self.telegram_enabled = QCheckBox("Activer les notifications Telegram")
-        notif_layout.addRow("", self.telegram_enabled)
+        notif_layout.addRow(
+            UIMessages.CONFIG_TELEGRAM_ENABLE_LABEL, self.telegram_enabled
+        )
 
         self.telegram_token = QLineEdit()  # Suppression de l'initialisation
-        notif_layout.addRow("Token du bot Telegram:", self.telegram_token)
+        notif_layout.addRow(UIMessages.CONFIG_TELEGRAM_TOKEN_LABEL, self.telegram_token)
 
         self.telegram_group = QLineEdit()  # Suppression de l'initialisation
-        notif_layout.addRow("ID du groupe/canal Telegram:", self.telegram_group)
+        notif_layout.addRow(UIMessages.CONFIG_TELEGRAM_GROUP_LABEL, self.telegram_group)
 
         # Bouton pour tester les notifications
-        test_notif_btn = QPushButton("Tester la notification")
+        test_notif_btn = QPushButton(UIMessages.BTN_TEST_NOTIFICATION)
         test_notif_btn.clicked.connect(self.test_notification)
         notif_layout.addRow("", test_notif_btn)
 
@@ -164,6 +167,12 @@ class ConfigDialog(QDialog):
 
         # Charger les valeurs après avoir créé tous les widgets
         self.load_settings()
+
+        # Configurer les valeurs par défaut
+        self.server_url.setText(Defaults.PLEX_SERVER_URL)
+        self.check_interval.setValue(Defaults.CHECK_INTERVAL)
+        self.max_streams.setValue(Defaults.MAX_STREAMS)
+        self.termination_message.setText(Defaults.TERMINATION_MESSAGE)
 
     def add_to_whitelist(self):
         """Ajouter un utilisateur à la liste blanche"""
@@ -198,15 +207,13 @@ class ConfigDialog(QDialog):
         # Supprimer tout le code qui manipule le fichier .env
 
         # À la place, mettre à jour directement la configuration dans la base
-        self.config_manager.set("plex_server.url", self.server_url.text())
-        self.config_manager.set("plex_server.token", self.plex_token.text())
-        self.config_manager.set(
-            "plex_server.check_interval", self.check_interval.value()
-        )
+        self.config_manager.set(ConfigKeys.PLEX_SERVER_URL, self.server_url.text())
+        self.config_manager.set(ConfigKeys.PLEX_TOKEN, self.plex_token.text())
+        self.config_manager.set(ConfigKeys.CHECK_INTERVAL, self.check_interval.value())
 
-        self.config_manager.set("rules.max_streams", self.max_streams.value())
+        self.config_manager.set(ConfigKeys.MAX_STREAMS, self.max_streams.value())
         self.config_manager.set(
-            "rules.termination_message", self.termination_message.text()
+            ConfigKeys.TERMINATION_MESSAGE, self.termination_message.text()
         )
 
         # Mettre à jour la whitelist avec les IDs utilisateurs
@@ -214,11 +221,17 @@ class ConfigDialog(QDialog):
         for i in range(self.whitelist.count()):
             user_id = self.whitelist.item(i).data(Qt.UserRole)
             whitelist_ids.append(user_id)
-        self.config_manager.set("rules.whitelist", whitelist_ids)
+        self.config_manager.set(ConfigKeys.WHITELIST, whitelist_ids)
 
-        self.config_manager.set("telegram.enabled", self.telegram_enabled.isChecked())
-        self.config_manager.set("telegram.bot_token", self.telegram_token.text())
-        self.config_manager.set("telegram.group_id", self.telegram_group.text())
+        self.config_manager.set(
+            ConfigKeys.TELEGRAM_ENABLED, self.telegram_enabled.isChecked()
+        )
+        self.config_manager.set(
+            ConfigKeys.TELEGRAM_BOT_TOKEN, self.telegram_token.text()
+        )
+        self.config_manager.set(
+            ConfigKeys.TELEGRAM_GROUP_ID, self.telegram_group.text()
+        )
 
         # Accepter le dialogue
         super().accept()
@@ -234,34 +247,44 @@ class ConfigDialog(QDialog):
             response = requests.get(url, headers=headers, timeout=5)
             if response.status_code == 200:
                 QMessageBox.information(
-                    self, "Succès", "Connexion au serveur Plex réussie!"
+                    self, UIMessages.TITLE_SUCCESS, UIMessages.CONFIG_CONNECTION_SUCCESS
                 )
             else:
                 QMessageBox.warning(
-                    self, "Erreur", f"Erreur de connexion: {response.status_code}"
+                    self,
+                    UIMessages.TITLE_ERROR,
+                    UIMessages.CONFIG_CONNECTION_ERROR.format(
+                        error=response.status_code
+                    ),
                 )
         except Exception as e:
-            QMessageBox.critical(self, "Erreur", f"Erreur de connexion: {str(e)}")
+            QMessageBox.critical(
+                self,
+                UIMessages.TITLE_ERROR,
+                UIMessages.CONFIG_CONNECTION_ERROR.format(error=str(e)),
+            )
 
     def test_notification(self):
         """Tester l'envoi d'une notification Telegram"""
         from utils import send_telegram_notification
 
-        message = "Ceci est un message de test de l'application PlexPatrol"
+        message = UIMessages.TEST_NOTIFICATION_MESSAGE
 
         try:
             result = send_telegram_notification(message)
             if result:
                 QMessageBox.information(
-                    self, "Succès", "Notification envoyée avec succès!"
+                    self, UIMessages.TITLE_SUCCESS, UIMessages.NOTIFICATION_SENT
                 )
             else:
                 QMessageBox.warning(
-                    self, "Erreur", "Impossible d'envoyer la notification"
+                    self, UIMessages.TITLE_ERROR, UIMessages.ERROR_SENDING_NOTIFICATION
                 )
         except Exception as e:
             QMessageBox.critical(
-                self, "Erreur", f"Erreur lors de l'envoi de la notification: {str(e)}"
+                self,
+                UIMessages.TITLE_ERROR,
+                UIMessages.ERROR_SENDING_NOTIFICATION_DETAILS.format(error=str(e)),
             )
 
     def load_settings(self):

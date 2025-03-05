@@ -20,6 +20,8 @@ from PyQt5.QtChart import (
 from PyQt5.QtGui import QPainter
 from PyQt5.QtCore import Qt
 
+from utils.constants import UIMessages
+
 
 class StatisticsDialog(QDialog):
     """Dialogue d'affichage des statistiques détaillées"""
@@ -40,20 +42,20 @@ class StatisticsDialog(QDialog):
 
         # Onglet 1: Tableau de données
         data_tab = self.create_data_tab()
-        tabs.addTab(data_tab, "Données")
+        tabs.addTab(data_tab, UIMessages.TAB_DATA)
 
         # Onglet 2: Graphiques
         chart_tab = self.create_chart_tab()
-        tabs.addTab(chart_tab, "Graphiques")
+        tabs.addTab(chart_tab, UIMessages.TAB_CHARTS)
 
         # Onglet 3: Analyse par plateforme
         platform_tab = self.create_platform_tab()
-        tabs.addTab(platform_tab, "Plateformes")
+        tabs.addTab(platform_tab, UIMessages.TAB_PLATFORMS)
 
         layout.addWidget(tabs)
 
         # Bouton de fermeture
-        close_button = QPushButton("Fermer")
+        close_button = QPushButton(UIMessages.BTN_CLOSE)
         close_button.clicked.connect(self.accept)
         layout.addWidget(close_button, 0, Qt.AlignRight)
 
@@ -109,7 +111,7 @@ class StatisticsDialog(QDialog):
 
         # Créer un graphique en camembert pour la répartition des arrêts
         pie_chart = QChart()
-        pie_chart.setTitle("Répartition des arrêts de flux par utilisateur")
+        pie_chart.setTitle(UIMessages.CHART_SESSIONS_TITLE)
         pie_chart.setAnimationOptions(QChart.SeriesAnimations)
 
         # Créer la série pour le camembert
@@ -148,7 +150,7 @@ class StatisticsDialog(QDialog):
 
         # Créer un graphique en barres pour les plateformes
         bar_chart = QChart()
-        bar_chart.setTitle("Arrêts de flux par plateforme")
+        bar_chart.setTitle(UIMessages.CHART_PLATFORMS_TITLE)
         bar_chart.setAnimationOptions(QChart.SeriesAnimations)
 
         # Collecter les données par plateforme

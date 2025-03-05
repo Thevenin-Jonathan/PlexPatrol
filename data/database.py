@@ -4,17 +4,18 @@ import json
 import logging
 from datetime import datetime
 from utils import get_app_path
+from utils.constants import LogMessages, Paths
 
 
 class PlexPatrolDB:
     def __init__(self):
         # Créer le dossier data s'il n'existe pas déjà
-        data_dir = os.path.join(get_app_path(), "data")
+        data_dir = os.path.join(get_app_path(), Paths.DATA)
         if not os.path.exists(data_dir):
             os.makedirs(data_dir)
 
         # Utiliser le chemin dans le dossier data
-        self.db_path = os.path.join(data_dir, "plexpatrol.db")
+        self.db_path = os.path.join(data_dir, Paths.DATABASE)
         self.initialize_db()
 
     def initialize_db(self):
@@ -74,12 +75,10 @@ class PlexPatrolDB:
             conn.commit()
             conn.close()
 
-            logging.info("Base de données initialisée avec succès")
+            logging.info(LogMessages.DB_INITIALIZED)
             return True
         except Exception as e:
-            logging.error(
-                f"Erreur lors de l'initialisation de la base de données: {str(e)}"
-            )
+            logging.error(LogMessages.DB_ERROR.format(error=str(e)))
             return False
 
     def create_config_table(self, conn):

@@ -1,6 +1,8 @@
 import requests
 import logging
 
+from utils.constants import LogMessages
+
 
 def send_telegram_notification(message):
     """
@@ -34,12 +36,10 @@ def send_telegram_notification(message):
         if response.status_code == 200:
             return True
         else:
-            logging.error(
-                f"Erreur lors de l'envoi du message Telegram: {response.status_code}"
-            )
+            logging.error(LogMessages.TELEGRAM_ERROR.format(code=response.status_code))
             return False
     except Exception as e:
-        logging.error(f"Exception lors de l'envoi du message Telegram: {str(e)}")
+        logging.error(LogMessages.TELEGRAM_EXCEPTION.format(error=str(e)))
         return False
 
 
