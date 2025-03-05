@@ -550,6 +550,51 @@ class PlexPatrolDB:
             )
             return None
 
+    def get_device_last_activity(self, device_id):
+        """
+        Récupère la timestamp de la dernière activité connue d'un appareil
+
+        Args:
+            device_id (str): Identifiant de l'appareil
+
+        Returns:
+            int: Timestamp de la dernière activité, ou 0 si inconnu
+        """
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+
+            # Récupérer la session la plus récente pour cet appareil
+            cursor.execute(
+                """
+                SELECT MAX(timestamp) 
+                FROM plex_sessions 
+                WHERE player_id = ?
+                """,
+                (device_id,),
+            )
+
+            result = cursor.fetchone()
+            conn.close()
+
+            if result and result[0]:
+                # Convertir la date en timestamp si nécessaire
+                if isinstance(result[0], str):
+                    try:
+                        dt = datetime.fromisoformat(result[0].replace("Z", "+00:00"))
+                        return int(dt.timestamp())
+                    except ValueError:
+                        # Si la conversion échoue, utiliser le timestamp actuel
+                        return int(time.time())
+                return int(result[0])
+
+            return 0  # Aucune activité connue
+        except Exception as e:
+            logging.error(
+                f"Erreur lors de la récupération de l'activité de l'appareil: {str(e)}"
+            )
+            return 0
+
 
 def load_stats():
     """Charger les statistiques d'utilisation"""
