@@ -186,7 +186,7 @@ class UserManagementDialog(QDialog):
 
             if user_details:
                 self.username_edit.setText(user_details.get("username", ""))
-                self.max_streams_spin.setValue(user_details.get("max_streams", 1))
+                self.max_streams_spin.setValue(user_details.get("max_streams", 2))
                 self.whitelist_check.setChecked(
                     bool(user_details.get("is_whitelisted", 0))
                 )
@@ -329,7 +329,7 @@ class UserManagementDialog(QDialog):
                     user_id=user_id,
                     username=username,
                     is_whitelisted=0,  # Par défaut, non whitelisté
-                    max_streams=1,  # Valeur par défaut
+                    max_streams=2,  # Valeur par défaut
                 )
 
                 if success:
