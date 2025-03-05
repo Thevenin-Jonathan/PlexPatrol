@@ -84,7 +84,7 @@ class PlexAPI:
             return False
 
 
-def get_plex_users(config):
+def get_plex_users():
     """
     Récupère la liste des utilisateurs Plex avec leurs IDs
 
