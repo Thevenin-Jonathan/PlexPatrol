@@ -2,7 +2,6 @@ import sqlite3
 import os
 import json
 import logging
-import hashlib
 from datetime import datetime
 from utils import get_app_path
 
