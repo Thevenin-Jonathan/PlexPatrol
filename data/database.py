@@ -283,6 +283,37 @@ class PlexPatrolDB:
             )
             return None
 
+    def is_user_whitelisted(self, user_id):
+        """
+        Vérifie si un utilisateur est en liste blanche dans la base de données
+
+        Args:
+            user_id (str): ID de l'utilisateur Plex
+
+        Returns:
+            bool: True si l'utilisateur est en liste blanche, False sinon
+        """
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+
+            # Vérifier si l'utilisateur a is_whitelisted=1
+            cursor.execute(
+                "SELECT is_whitelisted FROM plex_users WHERE id = ?", (user_id,)
+            )
+
+            result = cursor.fetchone()
+            conn.close()
+
+            if result and result[0] == 1:
+                return True
+            return False
+        except Exception as e:
+            logging.error(
+                f"Erreur lors de la vérification de la liste blanche: {str(e)}"
+            )
+            return False
+
     def record_session(
         self,
         user_id,
