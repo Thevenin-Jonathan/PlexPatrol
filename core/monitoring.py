@@ -219,48 +219,154 @@ class StreamMonitor(QThread):
 
     def check_stream_conditions(self, user_streams):
         """Vérifier les conditions des flux et arrêter ceux qui dépassent les limites"""
-        # Obtenir les paramètres
-        whitelist_ids = self.config.get("rules", {}).get("whitelist", [])
-        max_streams = self.config.get("rules", {}).get("max_streams", 1)
+        # Obtenir les paramètres globaux
+        whitelist_ids = self.config.get("rules.whitelist", [])
+        default_max_streams = self.config.get("rules.max_streams", 2)
 
         for user_id, streams in user_streams.items():
-            # Vérifier si l'utilisateur est dans la liste blanche par ID
-            if user_id in whitelist_ids:
+            # Vérifier si l'utilisateur est dans la liste blanche
+            if user_id in whitelist_ids or self.db.is_user_whitelisted(user_id):
                 continue
 
             # Obtenir le nom d'utilisateur du premier stream pour les logs
             username = streams[0][8] if streams else "Inconnu"
 
-            # Si l'utilisateur a plus de streams que autorisé
-            if len(streams) > max_streams:
+            # Récupérer la limite personnalisée de l'utilisateur
+            user_max_streams = self.db.get_user_max_streams(user_id)
+            max_streams = (
+                user_max_streams
+                if user_max_streams is not None
+                else default_max_streams
+            )
+
+            # Regrouper les flux par empreinte d'appareil
+            device_streams = {}
+
+            for stream in streams:
+                player_id = stream[2]  # machineIdentifier
+
+                # Créer une empreinte unique pour l'appareil
+                device_fingerprint = f"{player_id}"
+
+                # Si c'est un nouvel appareil, initialiser une liste
+                if device_fingerprint not in device_streams:
+                    device_streams[device_fingerprint] = []
+
+                # Ajouter ce flux à cet appareil
+                device_streams[device_fingerprint].append(stream)
+
+            # Compter les appareils uniques (pas les sessions)
+            unique_device_count = len(device_streams)
+
+            # Si l'utilisateur utilise trop d'appareils simultanément
+            if unique_device_count > max_streams:
                 self.logger.warning(
-                    f"Utilisateur {username} dépasse la limite de {max_streams} flux"
+                    f"Utilisateur {username} dépasse la limite de {max_streams} appareils uniques ({unique_device_count})"
                 )
                 self.new_log.emit(
-                    f"Utilisateur {username} dépasse la limite: {len(streams)} flux actifs",
+                    f"Utilisateur {username} dépasse la limite: {unique_device_count} appareils actifs",
                     "WARNING",
                 )
 
-                # Trier les streams par état (arrêter d'abord ceux qui ne sont pas en lecture)
-                sorted_streams = sorted(
-                    streams,
-                    key=lambda x: (
-                        0 if x[9] == "playing" else (1 if x[9] == "paused" else 2)
-                    ),
+                # Collecter des informations pour chaque appareil
+                devices_info = []
+
+                # Tenter de déterminer quels sont les appareils les plus récents/anciens
+                # en se basant sur les sessions enregistrées dans la base de données
+                for device_id, device_sessions in device_streams.items():
+                    # Récupérer des informations sur l'appareil à partir du premier flux
+                    first_session = device_sessions[0]
+                    ip_address = first_session[1]
+                    platform = first_session[5]
+                    device_name = first_session[7]
+                    state = (
+                        "playing"
+                        if any(s[9] == "playing" for s in device_sessions)
+                        else (
+                            "paused"
+                            if any(s[9] == "paused" for s in device_sessions)
+                            else "other"
+                        )
+                    )
+
+                    # Obtenir la dernière fois que cet appareil a été vu
+                    # (à adapter selon votre schéma de base de données)
+                    last_seen_timestamp = self.db.get_device_last_activity(device_id)
+
+                    # Attribuer une priorité en fonction de l'état
+                    # (0 = priorité la plus haute = playing)
+                    if state == "playing":
+                        priority = 0
+                    elif state == "paused":
+                        priority = 1
+                    else:
+                        priority = 2
+
+                    devices_info.append(
+                        {
+                            "device_id": device_id,
+                            "last_seen": (
+                                last_seen_timestamp if last_seen_timestamp else 0
+                            ),
+                            "priority": priority,
+                            "sessions": device_sessions,
+                            "platform": platform,
+                            "device_name": device_name,
+                            "state": state,
+                        }
+                    )
+
+                # Trier les appareils:
+                # 1. D'abord par priorité (playing > paused > autres)
+                # 2. Ensuite par timestamp (plus récent = priorité plus haute)
+                devices_info.sort(key=lambda x: (x["priority"], -x["last_seen"]))
+
+                # Nombre d'appareils à arrêter
+                to_stop_count = unique_device_count - max_streams
+
+                # Prendre les appareils à arrêter (les moins prioritaires/plus anciens)
+                devices_to_stop = (
+                    devices_info[-to_stop_count:] if to_stop_count > 0 else []
                 )
 
-                # Arrêter les streams excédentaires
-                streams_to_stop = sorted_streams[max_streams:]
-                for stream in streams_to_stop:
-                    session_id = stream[0]
-                    platform = stream[5]
-                    success = self.stop_stream(user_id, username, session_id)
+                # Arrêter les flux sur ces appareils
+                for device_info in devices_to_stop:
+                    self.logger.info(
+                        f"Arrêt des flux sur l'appareil {device_info['device_name']} ({device_info['platform']}) "
+                        f"pour {username} (état: {device_info['state']})"
+                    )
 
-                    if success:
-                        self.logger.info(f"Stream {session_id} arrêté pour {username}")
-                        self.new_log.emit(
-                            f"Stream arrêté pour {username} sur {platform}", "SUCCESS"
-                        )
+                    self.new_log.emit(
+                        f"Arrêt des flux sur {device_info['device_name']} ({device_info['platform']}) "
+                        f"pour {username} (état: {device_info['state']})",
+                        "WARNING",
+                    )
+
+                    # Arrêter toutes les sessions sur cet appareil
+                    for session in device_info["sessions"]:
+                        session_id = session[0]
+                        platform = session[5]
+                        success = self.stop_stream(user_id, username, session_id)
+
+                        if success:
+                            self.logger.info(
+                                f"Stream {session_id} arrêté pour {username}"
+                            )
+                            self.new_log.emit(
+                                f"Stream arrêté pour {username} sur {platform}",
+                                "SUCCESS",
+                            )
+
+                            # Mettre à jour les statistiques
+                            stats = load_stats()
+                            stats = update_user_stats(
+                                stats,
+                                username,
+                                stream_count=len(streams),
+                                stream_killed=True,
+                                platform=platform,
+                            )
+                            save_stats(stats)
 
     def stop_sessions(self, sessions_to_stop, user_id, username, all_streams):
         """Helper method to stop sessions and update statistics"""
