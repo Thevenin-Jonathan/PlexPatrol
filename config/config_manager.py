@@ -3,7 +3,7 @@ import json
 import logging
 import sqlite3
 from utils import get_app_path
-from utils.constants import UIMessages, ConfigKeys, Defaults, Paths
+from utils.constants import UIMessages, ConfigKeys, Defaults
 
 
 class ConfigManager:

@@ -168,12 +168,6 @@ class ConfigDialog(QDialog):
         # Charger les valeurs après avoir créé tous les widgets
         self.load_settings()
 
-        # Configurer les valeurs par défaut
-        self.server_url.setText(Defaults.PLEX_SERVER_URL)
-        self.check_interval.setValue(Defaults.CHECK_INTERVAL)
-        self.max_streams.setValue(Defaults.MAX_STREAMS)
-        self.termination_message.setText(Defaults.TERMINATION_MESSAGE)
-
     def add_to_whitelist(self):
         """Ajouter un utilisateur à la liste blanche"""
         if self.user_combo.currentData():
@@ -289,26 +283,41 @@ class ConfigDialog(QDialog):
 
     def load_settings(self):
         """Charge les paramètres de configuration dans l'interface"""
-        # Cette méthode est redondante car vous chargez déjà les paramètres dans setup_ui
-        # On peut la rendre plus simple ou la supprimer
-
         # Plex
-        self.server_url.setText(self.config_manager.plex_server_url)
-        self.plex_token.setText(self.config_manager.plex_token)
-        self.check_interval.setValue(self.config_manager.check_interval)
+        self.server_url.setText(
+            self.config_manager.get(
+                ConfigKeys.PLEX_SERVER_URL, Defaults.PLEX_SERVER_URL
+            )
+        )
+        self.plex_token.setText(self.config_manager.get(ConfigKeys.PLEX_TOKEN, ""))
+        self.check_interval.setValue(
+            self.config_manager.get(ConfigKeys.CHECK_INTERVAL, Defaults.CHECK_INTERVAL)
+        )
 
         # Règles
-        self.max_streams.setValue(self.config_manager.default_max_streams)
-        self.termination_message.setText(self.config_manager.termination_message)
+        self.max_streams.setValue(
+            self.config_manager.get(ConfigKeys.MAX_STREAMS, Defaults.MAX_STREAMS)
+        )
+        self.termination_message.setText(
+            self.config_manager.get(
+                ConfigKeys.TERMINATION_MESSAGE, Defaults.TERMINATION_MESSAGE
+            )
+        )
 
         # Telegram
-        self.telegram_enabled.setChecked(self.config_manager.telegram_enabled)
-        self.telegram_token.setText(self.config_manager.telegram_bot_token)
-        self.telegram_group.setText(self.config_manager.telegram_group_id)
+        self.telegram_enabled.setChecked(
+            self.config_manager.get(ConfigKeys.TELEGRAM_ENABLED, False)
+        )
+        self.telegram_token.setText(
+            self.config_manager.get(ConfigKeys.TELEGRAM_BOT_TOKEN, "")
+        )
+        self.telegram_group.setText(
+            self.config_manager.get(ConfigKeys.TELEGRAM_GROUP_ID, "")
+        )
 
-        # Whitelist (si nécessaire)
+        # Whitelist
         self.whitelist.clear()
-        whitelist_ids = self.config_manager.get("rules.whitelist", [])
+        whitelist_ids = self.config_manager.get(ConfigKeys.WHITELIST, [])
         for user_id in whitelist_ids:
             username = self.plex_users.get(user_id, f"Inconnu (ID: {user_id})")
             item = QListWidgetItem(f"{username}")
