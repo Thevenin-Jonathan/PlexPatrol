@@ -100,10 +100,6 @@ class UserManagementDialog(QDialog):
         refresh_btn.clicked.connect(self.load_users)
         buttons_layout.addWidget(refresh_btn)
 
-        migrate_btn = QPushButton(UIMessages.BTN_MIGRATE)
-        migrate_btn.clicked.connect(self.migrate_data)
-        buttons_layout.addWidget(migrate_btn)
-
         close_btn = QPushButton(UIMessages.BTN_CLOSE)
         close_btn.clicked.connect(self.accept)
         buttons_layout.addWidget(close_btn)
@@ -273,31 +269,6 @@ class UserManagementDialog(QDialog):
                     self,
                     "Erreur de suppression",
                     UIMessages.USER_DELETE_ERROR.format(error=str(e)),
-                )
-
-    def migrate_data(self):
-        """Migrer les données depuis les fichiers JSON vers la base de données"""
-        reply = QMessageBox.question(
-            self,
-            UIMessages.TITLE_CONFIRMATION,
-            UIMessages.CONFIRM_MIGRATION,
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No,
-        )
-
-        if reply == QMessageBox.Yes:
-            from data.migration import migrate_data_to_db
-
-            success = migrate_data_to_db()
-
-            if success:
-                QMessageBox.information(
-                    self, UIMessages.TITLE_SUCCESS, UIMessages.MIGRATION_SUCCESS
-                )
-                self.load_users()  # Recharger les utilisateurs
-            else:
-                QMessageBox.warning(
-                    self, UIMessages.TITLE_ERROR, UIMessages.MIGRATION_ERROR
                 )
 
     def sync_with_plex(self):

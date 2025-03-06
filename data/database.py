@@ -1,6 +1,5 @@
 import sqlite3
 import os
-import json
 import logging
 from datetime import datetime
 from utils import get_app_path
@@ -594,72 +593,3 @@ class PlexPatrolDB:
                 f"Erreur lors de la récupération de l'activité de l'appareil: {str(e)}"
             )
             return 0
-
-
-def load_stats():
-    """Charger les statistiques d'utilisation"""
-    stats_path = os.path.join(get_app_path(), "stats.json")
-
-    if not os.path.exists(stats_path):
-        return {}
-
-    try:
-        with open(stats_path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception as e:
-        logging.error(f"Erreur lors du chargement des statistiques: {str(e)}")
-        return {}
-
-
-def save_stats(stats):
-    """Enregistrer les statistiques d'utilisation"""
-    stats_path = os.path.join(get_app_path(), "stats.json")
-    try:
-        with open(stats_path, "w", encoding="utf-8") as f:
-            json.dump(stats, f, indent=2)
-        return True
-    except Exception as e:
-        logging.error(f"Erreur lors de l'enregistrement des statistiques: {str(e)}")
-        return False
-
-
-def update_user_stats(
-    stats, username, stream_count=1, stream_killed=False, platform=None
-):
-    """
-    Mettre à jour les statistiques d'un utilisateur
-
-    Args:
-        stats (dict): Dictionnaire des statistiques
-        username (str): Nom de l'utilisateur
-        stream_count (int): Nombre de flux détectés
-        stream_killed (bool): Si un flux a été arrêté
-        platform (str): Plateforme utilisée (si flux arrêté)
-
-    Returns:
-        dict: Statistiques mises à jour
-    """
-    if username not in stats:
-        stats[username] = {
-            "total_sessions": 0,
-            "kill_count": 0,
-            "last_seen": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "platforms": {},
-        }
-
-    # Mettre à jour les statistiques de base
-    stats[username]["total_sessions"] += stream_count
-    stats[username]["last_seen"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-    # Si un flux a été arrêté
-    if stream_killed:
-        stats[username]["kill_count"] += 1
-        stats[username]["last_kill"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-        # Mettre à jour les statistiques par plateforme
-        if platform:
-            if platform not in stats[username]["platforms"]:
-                stats[username]["platforms"][platform] = 0
-            stats[username]["platforms"][platform] += 1
-
-    return stats

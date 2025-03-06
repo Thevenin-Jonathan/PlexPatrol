@@ -7,8 +7,8 @@ from datetime import datetime
 import requests
 from PyQt5.QtCore import QThread, pyqtSignal
 from utils import get_app_path
-from data import PlexPatrolDB, load_stats, save_stats, update_user_stats
-from utils.constants import LogMessages, ConfigKeys, Paths, UIMessages
+from data import PlexPatrolDB
+from utils.constants import LogMessages, UIMessages
 
 
 class StreamMonitor(QThread):

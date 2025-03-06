@@ -8,7 +8,6 @@ from PyQt5.QtWidgets import (
     QHBoxLayout,
 )
 from PyQt5.QtCore import Qt
-from data import load_stats
 from utils.constants import UIMessages, TableColumns, Paths
 
 
