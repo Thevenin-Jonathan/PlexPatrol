@@ -486,7 +486,7 @@ class PlexPatrolDB:
             cursor.execute(
                 """
                 SELECT MAX(timestamp) 
-                FROM plex_sessions 
+                FROM sessions 
                 WHERE player_id = ?
                 """,
                 (device_id,),
