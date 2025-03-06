@@ -1,7 +1,7 @@
 import sqlite3
 import os
 import logging
-from datetime import datetime
+from datetime import datetime, time
 from utils import get_app_path
 from utils.constants import LogMessages, Paths
 
@@ -32,6 +32,7 @@ class PlexPatrolDB:
                 email TEXT,
                 phone TEXT,
                 is_whitelisted INTEGER DEFAULT 0,
+                is_disabled INTEGER DEFAULT 0,
                 max_streams INTEGER DEFAULT 2,
                 notes TEXT,
                 last_seen TEXT
@@ -47,6 +48,16 @@ class PlexPatrolDB:
             if "phone" not in columns:
                 cursor.execute("ALTER TABLE plex_users ADD COLUMN phone TEXT")
                 logging.info("Colonne 'phone' ajoutée à la table plex_users")
+
+            # Vérifier si la colonne "is_disabled" existe déjà
+            cursor.execute("PRAGMA table_info(plex_users)")
+            columns = [col[1] for col in cursor.fetchall()]
+
+            if "is_disabled" not in columns:
+                cursor.execute(
+                    "ALTER TABLE plex_users ADD COLUMN is_disabled INTEGER DEFAULT 0"
+                )
+                logging.info("Colonne 'is_disabled' ajoutée à la table plex_users")
 
             # Table des sessions
             cursor.execute(
@@ -103,7 +114,8 @@ class PlexPatrolDB:
         username,
         email=None,
         phone=None,
-        is_whitelisted=0,
+        is_whitelisted=None,
+        is_disabled=None,
         max_streams=None,
         notes=None,
     ):
@@ -113,62 +125,67 @@ class PlexPatrolDB:
             cursor = conn.cursor()
 
             # Vérifier si l'utilisateur existe déjà
-            cursor.execute("SELECT id FROM plex_users WHERE id = ?", (user_id,))
-            exists = cursor.fetchone()
+            cursor.execute(
+                "SELECT id, is_whitelisted, is_disabled, max_streams FROM plex_users WHERE id = ?",
+                (user_id,),
+            )
+            existing_user = cursor.fetchone()
 
-            if exists:
-                # Mise à jour de l'utilisateur existant
-                if max_streams is None:  # Ne pas modifier max_streams si non spécifié
-                    cursor.execute(
-                        """
-                    UPDATE plex_users 
-                    SET username = ?, email = ?, phone = ?, is_whitelisted = ?, notes = ?, last_seen = ? 
-                    WHERE id = ?
-                    """,
-                        (
-                            username,
-                            email,
-                            phone,
-                            is_whitelisted,
-                            notes,
-                            datetime.now().isoformat(),
-                            user_id,
-                        ),
-                    )
-                else:
-                    cursor.execute(
-                        """
-                    UPDATE plex_users 
-                    SET username = ?, email = ?, phone = ?, is_whitelisted = ?, max_streams = ?, notes = ?, last_seen = ? 
-                    WHERE id = ?
-                    """,
-                        (
-                            username,
-                            email,
-                            phone,
-                            is_whitelisted,
-                            max_streams,
-                            notes,
-                            datetime.now().isoformat(),
-                            user_id,
-                        ),
-                    )
-            else:
-                # Ajout d'un nouvel utilisateur
+            if existing_user:
+                # Ne pas écraser les valeurs existantes sauf si explicitement spécifiées
+                if is_whitelisted is None:
+                    is_whitelisted = existing_user[1]  # Utiliser la valeur existante
+
+                if is_disabled is None:
+                    is_disabled = existing_user[2]  # Utiliser la valeur existante
+
                 if max_streams is None:
-                    max_streams = 2  # Valeur par défaut
+                    max_streams = existing_user[3]  # Utiliser la valeur existante
+
+                # Mise à jour
+                cursor.execute(
+                    """
+                    UPDATE plex_users 
+                    SET username = ?, email = ?, phone = ?, is_whitelisted = ?, is_disabled = ?, 
+                        max_streams = ?, notes = ?, last_seen = ? 
+                    WHERE id = ?
+                    """,
+                    (
+                        username,
+                        email,
+                        phone,
+                        is_whitelisted,
+                        is_disabled,
+                        max_streams,
+                        notes,
+                        datetime.now().isoformat(),
+                        user_id,
+                    ),
+                )
+            else:
+                # Insertion d'un nouvel utilisateur
+                # Valeurs par défaut
+                if is_whitelisted is None:
+                    is_whitelisted = 0
+
+                if is_disabled is None:
+                    is_disabled = 0
+
+                if max_streams is None:
+                    max_streams = 2
 
                 cursor.execute(
                     """
-                INSERT INTO plex_users (id, username, email, phone, is_whitelisted, max_streams, notes, last_seen)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """,
+                    INSERT INTO plex_users (id, username, email, phone, is_whitelisted, is_disabled, max_streams, notes, last_seen)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
                     (
                         user_id,
                         username,
                         email,
                         phone,
                         is_whitelisted,
+                        is_disabled,
                         max_streams,
                         notes,
                         datetime.now().isoformat(),
@@ -331,7 +348,7 @@ class PlexPatrolDB:
             whitelist_value = 1 if is_whitelisted else 0
 
             cursor.execute(
-                "UPDATE plex_users SET is_whitelisted = ? WHERE user_id = ?",
+                "UPDATE plex_users SET is_whitelisted = ? WHERE id = ?",
                 (whitelist_value, user_id),
             )
 
@@ -593,3 +610,51 @@ class PlexPatrolDB:
                 f"Erreur lors de la récupération de l'activité de l'appareil: {str(e)}"
             )
             return 0
+
+    def is_user_disabled(self, user_id):
+        """Vérifie si un utilisateur est désactivé"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT is_disabled FROM plex_users WHERE id = ?", (user_id,)
+            )
+            result = cursor.fetchone()
+            conn.close()
+            return bool(result[0]) if result else False
+        except Exception as e:
+            logging.error(
+                f"Erreur lors de la vérification du statut de désactivation: {str(e)}"
+            )
+            return False
+
+    def set_user_disabled_status(self, user_id, is_disabled):
+        """
+        Définit le statut de désactivation d'un utilisateur
+
+        Args:
+            user_id (str): ID de l'utilisateur Plex
+            is_disabled (bool): True pour désactiver le compte, False sinon
+
+        Returns:
+            bool: True si réussi, False sinon
+        """
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+
+            disabled_value = 1 if is_disabled else 0
+
+            cursor.execute(
+                "UPDATE plex_users SET is_disabled = ? WHERE id = ?",
+                (disabled_value, user_id),
+            )
+
+            conn.commit()
+            conn.close()
+            return True
+        except Exception as e:
+            logging.error(
+                f"Erreur lors de la mise à jour du statut de désactivation: {str(e)}"
+            )
+            return False

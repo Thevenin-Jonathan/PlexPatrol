@@ -38,7 +38,7 @@ class UserManagementDialog(QDialog):
         group_layout = QVBoxLayout(group_box)
 
         self.users_table = QTableWidget()
-        self.users_table.setColumnCount(8)
+        self.users_table.setColumnCount(9)
         self.users_table.setHorizontalHeaderLabels(TableColumns.USERS)
         self.users_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.users_table.setSelectionBehavior(QTableWidget.SelectRows)
@@ -80,6 +80,10 @@ class UserManagementDialog(QDialog):
         form_layout.addWidget(QLabel(UIMessages.LABEL_WHITELIST), 2, 0)
         self.whitelist_check = QCheckBox()
         form_layout.addWidget(self.whitelist_check, 2, 1)
+
+        form_layout.addWidget(QLabel(UIMessages.LABEL_ACCOUNT_DISABLED), 2, 2)
+        self.disabled_check = QCheckBox()
+        form_layout.addWidget(self.disabled_check, 2, 3)
 
         # Ligne 4
         form_layout.addWidget(QLabel(UIMessages.LABEL_NOTES), 3, 0)
@@ -131,6 +135,7 @@ class UserManagementDialog(QDialog):
             phone = user.get("phone", "")
             max_streams = user.get("max_streams", 1)
             is_whitelisted = "Oui" if user.get("is_whitelisted", 0) else "Non"
+            is_disabled = "Oui" if user.get("is_disabled", 0) else "Non"
             total_sessions = user.get("total_sessions", 0)
             kill_count = user.get("terminated_sessions", 0)
             last_activity = user.get("last_seen", "Jamais")
@@ -150,22 +155,24 @@ class UserManagementDialog(QDialog):
 
             self.users_table.setItem(row, 3, QTableWidgetItem(is_whitelisted))
 
+            self.users_table.setItem(row, 4, QTableWidgetItem(is_disabled))
+
             total_sessions_item = QTableWidgetItem()
             total_sessions_item.setData(Qt.DisplayRole, total_sessions)
-            self.users_table.setItem(row, 4, total_sessions_item)
+            self.users_table.setItem(row, 5, total_sessions_item)
 
             kill_count_item = QTableWidgetItem()
             kill_count_item.setData(Qt.DisplayRole, kill_count)
-            self.users_table.setItem(row, 5, kill_count_item)
+            self.users_table.setItem(row, 6, kill_count_item)
 
-            self.users_table.setItem(row, 6, QTableWidgetItem(last_activity))
+            self.users_table.setItem(row, 7, QTableWidgetItem(last_activity))
 
             # Ajouter le bouton de suppression
             delete_button = QPushButton("Supprimer")
             delete_button.setProperty("username", username)
             delete_button.clicked.connect(self.delete_user)
 
-            self.users_table.setCellWidget(row, 7, delete_button)
+            self.users_table.setCellWidget(row, 8, delete_button)
 
         # Réactiver le tri après avoir chargé toutes les données
         self.users_table.setSortingEnabled(True)
@@ -186,6 +193,7 @@ class UserManagementDialog(QDialog):
                 self.whitelist_check.setChecked(
                     bool(user_details.get("is_whitelisted", 0))
                 )
+                self.disabled_check.setChecked(bool(user_details.get("is_disabled", 0)))
                 self.email_edit.setText(user_details.get("email", "") or "")
                 self.phone_edit.setText(user_details.get("phone", "") or "")
                 self.notes_edit.setText(user_details.get("notes", "") or "")
@@ -203,7 +211,8 @@ class UserManagementDialog(QDialog):
             if user_id:
                 username = self.username_edit.text()
                 max_streams = self.max_streams_spin.value()
-                is_whitelisted = int(self.whitelist_check.isChecked())
+                is_whitelisted = self.whitelist_check.isChecked()
+                is_disabled = self.disabled_check.isChecked()
                 email = self.email_edit.text()
 
                 # S'assurer que le numéro de téléphone est correctement formaté avant de sauvegarder
@@ -212,20 +221,34 @@ class UserManagementDialog(QDialog):
 
                 notes = self.notes_edit.text()
 
-                # Mettre à jour dans la base de données
-                if self.db.add_or_update_user(
+                # Mettre à jour l'utilisateur avec les informations de base
+                success = self.db.add_or_update_user(
                     user_id,
                     username,
                     email=email,
                     phone=phone,
-                    is_whitelisted=is_whitelisted,
-                    max_streams=max_streams,
                     notes=notes,
-                ):
-                    QMessageBox.information(
-                        self, UIMessages.TITLE_SUCCESS, UIMessages.USER_UPDATED
+                    max_streams=max_streams,
+                )
+
+                # Mettre à jour spécifiquement les statuts whitelist et disabled
+                if success:
+                    whitelist_success = self.db.set_user_whitelist_status(
+                        user_id, is_whitelisted
                     )
-                    self.load_users()  # Recharger les données
+                    disabled_success = self.db.set_user_disabled_status(
+                        user_id, is_disabled
+                    )
+
+                    if whitelist_success and disabled_success:
+                        QMessageBox.information(
+                            self, UIMessages.TITLE_SUCCESS, UIMessages.USER_UPDATED
+                        )
+                        self.load_users()  # Recharger les données
+                    else:
+                        QMessageBox.warning(
+                            self, "Erreur", UIMessages.ERROR_UPDATE_USER
+                        )
                 else:
                     QMessageBox.warning(self, "Erreur", UIMessages.ERROR_UPDATE_USER)
 

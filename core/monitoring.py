@@ -1,4 +1,5 @@
 import os
+import sqlite3
 import time
 import json
 import logging
@@ -30,6 +31,11 @@ class StreamMonitor(QThread):
         self.last_poll_time = 0
         self.consecutive_errors = 0
         self.db = PlexPatrolDB()
+
+        # Ajouter l'import des notifications
+        from utils.notification import send_telegram_notification
+
+        self.send_telegram = send_telegram_notification
 
         # Configurer le logger
         self.setup_logger()
@@ -244,6 +250,45 @@ class StreamMonitor(QThread):
         default_max_streams = self.config.get("rules.max_streams", 2)
 
         for user_id, streams in user_streams.items():
+            # Obtenir le nom d'utilisateur du premier stream pour les logs
+            username = streams[0][8] if streams else "Inconnu"
+
+            # Vérifier si le compte est désactivé
+            if self.db.is_user_disabled(user_id):
+                self.logger.warning(
+                    f"Tentative de lecture sur compte désactivé : {username}"
+                )
+
+                # Récupérer les informations du premier stream pour la notification
+                stream = streams[0]
+                title = stream[4]  # media_title
+                platform = stream[5]  # platform
+                ip = stream[1]  # ip_address
+
+                # Envoyer une notification Telegram
+                notification = UIMessages.DISABLED_USER_ATTEMPT.format(
+                    username=username, title=title, platform=platform, ip=ip
+                )
+                self.send_telegram(notification)
+
+                # Ajouter ce log pour l'interface
+                self.new_log.emit(
+                    f"Tentative de lecture détectée sur compte désactivé : {username}",
+                    "WARNING",
+                )
+
+                # Arrêter tous les streams avec le message spécifique
+                for stream in streams:
+                    session_id = stream[0]
+                    self.stop_stream_with_message(
+                        user_id,
+                        username,
+                        session_id,
+                        UIMessages.ACCOUNT_DISABLED_MESSAGE,
+                    )
+
+                continue  # Passer à l'utilisateur suivant
+
             # Vérifier si l'utilisateur est dans la liste blanche
             if user_id in whitelist_ids or self.db.is_user_whitelisted(user_id):
                 continue
