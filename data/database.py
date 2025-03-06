@@ -439,16 +439,19 @@ class PlexPatrolDB:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
 
-            # 1. S'assurer que l'utilisateur existe
+            now = datetime.now().isoformat()
+
+            # 1. Mettre à jour la dernière terminaison et le compteur
             cursor.execute(
                 """
-                INSERT OR IGNORE INTO plex_users (id, username, last_seen) 
-                VALUES (?, ?, ?)
+                UPDATE plex_users
+                SET last_kill = ?, terminated_sessions = COALESCE(terminated_sessions, 0) + 1
+                WHERE id = ?
                 """,
-                (user_id, username, datetime.now().isoformat()),
+                (now, user_id),
             )
 
-            # 2. Mettre à jour les compteurs de plateforme
+            # 2. Mettre à jour ou créer les statistiques de plateforme
             cursor.execute(
                 """
                 INSERT OR IGNORE INTO platform_stats (user_id, platform, count)
