@@ -40,25 +40,6 @@ class PlexPatrolDB:
             """
             )
 
-            # Vérifier si la colonne "phone" existe déjà
-            cursor.execute("PRAGMA table_info(plex_users)")
-            columns = [col[1] for col in cursor.fetchall()]
-
-            # Si la colonne "phone" n'existe pas, l'ajouter
-            if "phone" not in columns:
-                cursor.execute("ALTER TABLE plex_users ADD COLUMN phone TEXT")
-                logging.info("Colonne 'phone' ajoutée à la table plex_users")
-
-            # Vérifier si la colonne "is_disabled" existe déjà
-            cursor.execute("PRAGMA table_info(plex_users)")
-            columns = [col[1] for col in cursor.fetchall()]
-
-            if "is_disabled" not in columns:
-                cursor.execute(
-                    "ALTER TABLE plex_users ADD COLUMN is_disabled INTEGER DEFAULT 0"
-                )
-                logging.info("Colonne 'is_disabled' ajoutée à la table plex_users")
-
             # Table des sessions
             cursor.execute(
                 """
