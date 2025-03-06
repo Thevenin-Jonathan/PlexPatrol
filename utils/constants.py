@@ -42,6 +42,12 @@ class UIMessages:
     STATS_DIALOG_TITLE = "Statistiques détaillées"
     FIRST_TIME_SETUP_TITLE = "Configuration initiale PlexPatrol"
 
+    # Messages de terminaison de flux pour l'utilisateur
+    TERMINATION_MESSAGE_PAUSED = (
+        "Lecture arrêtée car une nouvelle lecture a été démarrée sur un autre appareil."
+    )
+    TERMINATION_MESSAGE_PLAYING = "Votre session a été arrêtée car vous avez dépassé le nombre maximum d'écrans autorisés."
+
     # Titres de boîtes de message
     TITLE_SUCCESS = "Succès"
     TITLE_ERROR = "Erreur"
@@ -179,6 +185,8 @@ class LogMessages:
     XML_PARSE_ERROR = "Erreur lors du parsing des données de session: {error}"
     PLEX_USERS_ERROR = "Erreur lors du chargement des utilisateurs Plex: {error}"
     STATS_EXPORT_ERROR = "Erreur lors de l'exportation des statistiques: {error}"
+    STREAM_STOP_FAILED = "Échec de l'arrêt du flux pour {username} sur {platform}"
+
     # Succès
     DB_INITIALIZED = "Base de données initialisée avec succès"
     PLEX_USERS_LOADED = "Chargement de {count} utilisateurs Plex réussi"
@@ -194,6 +202,17 @@ class LogMessages:
     TELEGRAM_CONFIG_INCOMPLETE = "Configuration Telegram incomplète"
     TELEGRAM_ERROR = "Erreur lors de l'envoi du message Telegram: {code}"
     TELEGRAM_EXCEPTION = "Exception lors de l'envoi du message Telegram: {error}"
+
+    # Messages spécifiques à l'état des streams
+    STREAM_STOPPED_PLAYING = (
+        "Stream en lecture arrêté pour {username} sur {platform} ({device})"
+    )
+    STREAM_STOPPED_PAUSED = (
+        "Stream en pause arrêté pour {username} sur {platform} ({device})"
+    )
+    STREAM_STOPPED_OTHER = (
+        "Stream ({state}) arrêté pour {username} sur {platform} ({device})"
+    )
 
 
 # Types de severité pour les logs

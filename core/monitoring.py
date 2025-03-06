@@ -8,7 +8,7 @@ import requests
 from PyQt5.QtCore import QThread, pyqtSignal
 from utils import get_app_path
 from data import PlexPatrolDB, load_stats, save_stats, update_user_stats
-from utils.constants import LogMessages, ConfigKeys, Paths
+from utils.constants import LogMessages, ConfigKeys, Paths, UIMessages
 
 
 class StreamMonitor(QThread):
@@ -115,7 +115,7 @@ class StreamMonitor(QThread):
 
         try:
             response = requests.get(url, headers=headers, timeout=10)
-            if response.status_code == 200:
+            if response.status_code == 200 and response.text:
                 return response.text
             else:
                 self.logger.error(f"Erreur de requête: {response.status_code}")
@@ -135,78 +135,91 @@ class StreamMonitor(QThread):
 
             # Parcourir toutes les sessions vidéo
             for video in root.findall(".//Video"):
-                # Récupérer les informations de base
-                session_id = video.find(".//Session").get("id", "")
-                grandparent_title = video.get("grandparentTitle", "")
-                parent_title = video.get("parentTitle", "")
-                title = video.get("title", "")
+                try:
+                    # Récupérer les informations de base
+                    session_elem = video.find(".//Session")
+                    if session_elem is None:
+                        # Ignorer les streams sans session ID
+                        continue
 
-                # Construire le titre complet
-                if grandparent_title and parent_title:
-                    # Format série: "Série - S01E01 - Titre de l'épisode"
-                    media_title = f"{grandparent_title} - {parent_title} - {title}"
-                elif grandparent_title:
-                    # Format série sans numéro d'épisode
-                    media_title = f"{grandparent_title} - {title}"
-                else:
-                    # Format film
-                    media_title = title
+                    session_id = session_elem.get("id", "")
+                    grandparent_title = video.get("grandparentTitle", "")
+                    parent_title = video.get("parentTitle", "")
+                    title = video.get("title", "")
 
-                # Récupérer la section/bibliothèque
-                library_section = video.get("librarySectionTitle", "Inconnu")
+                    # Construire le titre complet
+                    if grandparent_title and parent_title:
+                        # Format série: "Série - S01E01 - Titre de l'épisode"
+                        media_title = f"{grandparent_title} - {parent_title} - {title}"
+                    elif grandparent_title:
+                        # Format série sans numéro d'épisode
+                        media_title = f"{grandparent_title} - {title}"
+                    else:
+                        # Format film
+                        media_title = title
 
-                # Récupérer l'état (lecture, pause)
-                state = video.find(".//Player").get("state", "unknown")
+                    # Récupérer la section/bibliothèque
+                    library_section = video.get("librarySectionTitle", "Inconnu")
 
-                # Récupérer les informations sur l'utilisateur
-                user_elem = video.find(".//User")
-                username = (
-                    user_elem.get("title", "Inconnu")
-                    if user_elem is not None
-                    else "Inconnu"
-                )
-                user_id = user_elem.get("id", "0") if user_elem is not None else "0"
+                    # Récupérer les informations sur le player
+                    player_elem = video.find(".//Player")
+                    if player_elem is None:
+                        # Ignorer les streams sans information de lecteur
+                        continue
 
-                # Récupérer les informations sur le player
-                player_elem = video.find(".//Player")
-                if player_elem is not None:
+                    # Récupérer l'état (lecture, pause)
+                    state = player_elem.get("state", "unknown")
                     ip_address = player_elem.get("address", "Inconnu")
                     player_id = player_elem.get("machineIdentifier", "Inconnu")
                     platform = player_elem.get("platform", "Inconnu")
                     product = player_elem.get("product", "Inconnu")
                     device = player_elem.get("device", "Inconnu")
-                else:
-                    ip_address = player_id = platform = product = device = "Inconnu"
 
-                # Stocker les informations dans le dictionnaire
-                stream_info = (
-                    session_id,
-                    ip_address,
-                    player_id,
-                    library_section,
-                    media_title,
-                    platform,
-                    product,
-                    device,
-                    username,
-                    state,
-                )
+                    # Récupérer les informations sur l'utilisateur
+                    user_elem = video.find(".//User")
+                    if user_elem is None:
+                        # Utiliser des valeurs par défaut si l'utilisateur n'est pas trouvé
+                        username = "Inconnu"
+                        user_id = "0"
+                    else:
+                        username = user_elem.get("title", "Inconnu")
+                        user_id = user_elem.get("id", "0")
 
-                if user_id not in user_streams:
-                    user_streams[user_id] = []
+                    # Stocker les informations dans le dictionnaire
+                    stream_info = (
+                        session_id,
+                        ip_address,
+                        player_id,
+                        library_section,
+                        media_title,
+                        platform,
+                        product,
+                        device,
+                        username,
+                        state,
+                    )
 
-                user_streams[user_id].append(stream_info)
+                    if user_id not in user_streams:
+                        user_streams[user_id] = []
 
-                self.db.add_or_update_user(user_id, username)
-                self.db.record_session(
-                    user_id,
-                    session_id,
-                    platform,
-                    device,
-                    ip_address,
-                    media_title,
-                    library_section,
-                )
+                    user_streams[user_id].append(stream_info)
+
+                    self.db.add_or_update_user(user_id, username)
+                    self.db.record_session(
+                        user_id,
+                        session_id,
+                        platform,
+                        device,
+                        ip_address,
+                        media_title,
+                        library_section,
+                    )
+                except Exception as inner_e:
+                    # Capturer les erreurs spécifiques à un stream pour ne pas interrompre le traitement
+                    self.logger.error(
+                        f"Erreur lors du traitement d'un stream: {str(inner_e)}"
+                    )
+                    # Continuer avec le stream suivant
 
             return user_streams
 
@@ -218,7 +231,14 @@ class StreamMonitor(QThread):
             return {}
 
     def check_stream_conditions(self, user_streams):
-        """Vérifier les conditions des flux et arrêter ceux qui dépassent les limites"""
+        """
+        Vérifier les conditions des flux et arrêter ceux qui dépassent les limites
+        Nouvelle logique:
+        1. Vérifier le nombre de flux par utilisateur
+        2. Si dépassement:
+        a. Arrêter d'abord les flux en pause
+        b. Si encore trop, arrêter les flux en lecture
+        """
         # Obtenir les paramètres globaux
         whitelist_ids = self.config.get("rules.whitelist", [])
         default_max_streams = self.config.get("rules.max_streams", 2)
@@ -239,148 +259,116 @@ class StreamMonitor(QThread):
                 else default_max_streams
             )
 
-            # Regrouper les flux par empreinte d'appareil
-            device_streams = {}
+            # Nombre total de flux pour cet utilisateur (unique par appareil + IP)
+            unique_streams = {}
+
+            # Séparation des flux par état
+            paused_streams = []
+            playing_streams = []
+            other_streams = []
 
             for stream in streams:
-                player_id = stream[2]  # machineIdentifier
+                session_id = stream[0]
+                ip_address = stream[1]
+                player_id = stream[2]
+                state = stream[9]  # état du stream (playing, paused, etc.)
 
-                # Créer une empreinte unique pour l'appareil
-                device_fingerprint = f"{player_id}"
+                # Créer une clé unique basée sur l'ID de l'appareil et l'adresse IP
+                stream_key = f"{player_id}_{ip_address}"
 
-                # Si c'est un nouvel appareil, initialiser une liste
-                if device_fingerprint not in device_streams:
-                    device_streams[device_fingerprint] = []
+                # Ajouter à notre dictionnaire pour compter les flux uniques
+                unique_streams[stream_key] = stream
 
-                # Ajouter ce flux à cet appareil
-                device_streams[device_fingerprint].append(stream)
+                # Classifier selon l'état
+                if state == "playing":
+                    playing_streams.append(stream)
+                elif state == "paused":
+                    paused_streams.append(stream)
+                else:
+                    other_streams.append(stream)
 
-            # Compter les appareils uniques (pas les sessions)
-            unique_device_count = len(device_streams)
+            # Nombre total de flux uniques
+            stream_count = len(unique_streams)
 
-            # Si l'utilisateur utilise trop d'appareils simultanément
-            if unique_device_count > max_streams:
+            # Vérifier si l'utilisateur dépasse sa limite
+            if stream_count > max_streams:
                 self.logger.warning(
-                    f"Utilisateur {username} dépasse la limite de {max_streams} appareils uniques ({unique_device_count})"
+                    f"Utilisateur {username} dépasse la limite: {stream_count} flux actifs (max: {max_streams})"
                 )
                 self.new_log.emit(
-                    f"Utilisateur {username} dépasse la limite: {unique_device_count} appareils actifs",
+                    f"Utilisateur {username} dépasse la limite: {stream_count} flux actifs (max: {max_streams})",
                     "WARNING",
                 )
 
-                # Collecter des informations pour chaque appareil
-                devices_info = []
+                # Initialiser la liste des flux à arrêter
+                streams_to_stop = []
 
-                # Tenter de déterminer quels sont les appareils les plus récents/anciens
-                # en se basant sur les sessions enregistrées dans la base de données
-                for device_id, device_sessions in device_streams.items():
-                    # Récupérer des informations sur l'appareil à partir du premier flux
-                    first_session = device_sessions[0]
-                    ip_address = first_session[1]
-                    platform = first_session[5]
-                    device_name = first_session[7]
-                    state = (
-                        "playing"
-                        if any(s[9] == "playing" for s in device_sessions)
-                        else (
-                            "paused"
-                            if any(s[9] == "paused" for s in device_sessions)
-                            else "other"
-                        )
-                    )
+                # 1. Prendre d'abord les flux en pause
+                if paused_streams:
+                    # Calculer combien de flux en pause on doit arrêter
+                    streams_to_stop_count = stream_count - max_streams
+                    paused_to_stop = min(streams_to_stop_count, len(paused_streams))
+                    streams_to_stop.extend(paused_streams[:paused_to_stop])
 
-                    # Obtenir la dernière fois que cet appareil a été vu
-                    # (à adapter selon votre schéma de base de données)
-                    last_seen_timestamp = self.db.get_device_last_activity(device_id)
-
-                    # Attribuer une priorité en fonction de l'état
-                    # (0 = priorité la plus haute = playing)
-                    if state == "playing":
-                        priority = 0
-                    elif state == "paused":
-                        priority = 1
-                    else:
-                        priority = 2
-
-                    devices_info.append(
-                        {
-                            "device_id": device_id,
-                            "last_seen": (
-                                last_seen_timestamp if last_seen_timestamp else 0
-                            ),
-                            "priority": priority,
-                            "sessions": device_sessions,
-                            "platform": platform,
-                            "device_name": device_name,
-                            "state": state,
-                        }
-                    )
-
-                # Trier les appareils:
-                # 1. D'abord par priorité (playing > paused > autres)
-                # 2. Ensuite par timestamp (plus récent = priorité plus haute)
-                devices_info.sort(key=lambda x: (x["priority"], -x["last_seen"]))
-
-                # Nombre d'appareils à arrêter
-                to_stop_count = unique_device_count - max_streams
-
-                # Prendre les appareils à arrêter (les moins prioritaires/plus anciens)
-                devices_to_stop = (
-                    devices_info[-to_stop_count:] if to_stop_count > 0 else []
-                )
-
-                # Arrêter les flux sur ces appareils
-                for device_info in devices_to_stop:
                     self.logger.info(
-                        f"Arrêt des flux sur l'appareil {device_info['device_name']} ({device_info['platform']}) "
-                        f"pour {username} (état: {device_info['state']})"
+                        f"Arrêt de {paused_to_stop} flux en pause pour {username}"
                     )
 
-                    self.new_log.emit(
-                        f"Arrêt des flux sur {device_info['device_name']} ({device_info['platform']}) "
-                        f"pour {username} (état: {device_info['state']})",
-                        "WARNING",
+                # 2. Si on a encore besoin d'arrêter des flux, prendre ceux en lecture
+                else:
+                    # Cas où tous les flux sont en lecture: les arrêter TOUS
+                    self.logger.info(
+                        f"Tous les flux sont en lecture - Arrêt de TOUS les flux ({len(playing_streams)}) pour {username}"
                     )
+                    streams_to_stop.extend(
+                        playing_streams
+                    )  # Ajouter tous les flux en lecture
+                    streams_to_stop.extend(
+                        other_streams
+                    )  # Ajouter également tous les autres flux
 
-                    # Arrêter toutes les sessions sur cet appareil
-                    for session in device_info["sessions"]:
-                        session_id = session[0]
-                        platform = session[5]
-                        success = self.stop_stream(user_id, username, session_id)
-
-                        if success:
-                            self.logger.info(
-                                f"Stream {session_id} arrêté pour {username}"
-                            )
-                            self.new_log.emit(
-                                f"Stream arrêté pour {username} sur {platform}",
-                                "SUCCESS",
-                            )
-
-                            # Mettre à jour les statistiques
-                            stats = load_stats()
-                            stats = update_user_stats(
-                                stats,
-                                username,
-                                stream_count=len(streams),
-                                stream_killed=True,
-                                platform=platform,
-                            )
-                            save_stats(stats)
+                # Arrêter les flux sélectionnés
+                self.stop_sessions(streams_to_stop, user_id, username, streams)
 
     def stop_sessions(self, sessions_to_stop, user_id, username, all_streams):
-        """Helper method to stop sessions and update statistics"""
+        """
+        Arrêter les sessions spécifiées et mettre à jour les statistiques
+
+        Args:
+            sessions_to_stop: Liste des sessions à arrêter
+            user_id: ID de l'utilisateur
+            username: Nom d'utilisateur
+            all_streams: Toutes les sessions de l'utilisateur pour les statistiques
+        """
         for stream in sessions_to_stop:
             session_id = stream[0]
             platform = stream[5]
-            success = self.stop_stream(user_id, username, session_id)
+            device = stream[7]
+            state = stream[9]
+
+            self.logger.info(
+                f"Tentative d'arrêt du flux {session_id} ({platform}/{device}, état: {state}) pour {username}"
+            )
+
+            success = self.stop_stream(user_id, username, session_id, state)
 
             if success:
                 self.logger.info(f"Stream {session_id} arrêté pour {username}")
-                self.new_log.emit(
-                    f"Stream arrêté pour {username} sur {platform}",
-                    "SUCCESS",
-                )
+                # Utiliser un message différent selon l'état du flux
+                if state == "playing":
+                    log_message = LogMessages.STREAM_STOPPED_PLAYING.format(
+                        username=username, platform=platform, device=device
+                    )
+                elif state == "paused":
+                    log_message = LogMessages.STREAM_STOPPED_PAUSED.format(
+                        username=username, platform=platform, device=device
+                    )
+                else:
+                    log_message = LogMessages.STREAM_STOPPED_OTHER.format(
+                        username=username, platform=platform, device=device, state=state
+                    )
+
+                self.new_log.emit(log_message, "SUCCESS")
 
                 # Mettre à jour les statistiques
                 stats = load_stats()
@@ -392,12 +380,40 @@ class StreamMonitor(QThread):
                     platform=platform,
                 )
                 save_stats(stats)
+            else:
+                self.logger.warning(
+                    f"Échec de l'arrêt du flux {session_id} pour {username}"
+                )
+                self.new_log.emit(
+                    LogMessages.STREAM_STOP_FAILED.format(
+                        username=username, platform=platform
+                    ),
+                    "ERROR",
+                )
 
-    def stop_stream(self, user_id, username, session_id):
-        """Arrêter un stream spécifique"""
+    def stop_stream(self, user_id, username, session_id, state="playing"):
+        """
+        Arrêter un stream spécifique avec un message adapté à l'état du flux
+
+        Args:
+            user_id: ID de l'utilisateur
+            username: Nom de l'utilisateur
+            session_id: ID de la session à arrêter
+            state: État du flux (playing, paused, etc.)
+        """
         url = f"{self.config.plex_server_url}/status/sessions/terminate"
-        params = {"sessionId": session_id, "reason": self.config.termination_message}
+
+        # Sélectionner le message en fonction de l'état du flux
+        if state == "paused":
+            reason = UIMessages.TERMINATION_MESSAGE_PAUSED
+        elif state == "playing":
+            reason = UIMessages.TERMINATION_MESSAGE_PLAYING
+        else:
+            reason = self.config.termination_message  # Message par défaut
+
+        params = {"sessionId": session_id, "reason": reason}
         headers = {"X-Plex-Token": self.config.plex_token}
+
         try:
             response = requests.get(url, params=params, headers=headers, timeout=10)
             if response.status_code == 200:
@@ -408,9 +424,9 @@ class StreamMonitor(QThread):
             self.logger.error(f"Erreur lors de l'arrêt du stream: {str(e)}")
             return False
 
-    def manual_stop_stream(self, user_id, username, session_id):
+    def manual_stop_stream(self, user_id, username, session_id, state="playing"):
         """Arrêter manuellement un stream (depuis l'interface)"""
-        return self.stop_stream(user_id, username, session_id)
+        return self.stop_stream(user_id, username, session_id, state)
 
     def update_user_stats(self, username, stream_count):
         """Mettre à jour les statistiques d'utilisation"""
