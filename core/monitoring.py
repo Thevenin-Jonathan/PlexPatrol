@@ -505,43 +505,6 @@ class StreamMonitor(QThread):
             self.logger.error(f"Erreur lors de l'arrêt du stream: {str(e)}")
             return False
 
-    def get_session_info(self, session_id):
-        """
-        Récupère les informations d'une session
-
-        Args:
-            session_id (str): L'ID de la session
-
-        Returns:
-            dict: Les informations de la session ou None si non trouvée
-        """
-        try:
-            conn = sqlite3.connect(self.db_path)
-            conn.row_factory = sqlite3.Row  # Pour accéder aux colonnes par nom
-            cursor = conn.cursor()
-
-            cursor.execute(
-                """
-                SELECT * FROM sessions
-                WHERE session_id = ?
-                ORDER BY timestamp DESC
-                LIMIT 1
-                """,
-                (session_id,),
-            )
-
-            row = cursor.fetchone()
-            conn.close()
-
-            if row:
-                return dict(row)
-            return None
-        except Exception as e:
-            logging.error(
-                f"Erreur lors de la récupération des infos de session: {str(e)}"
-            )
-            return None
-
     def manual_stop_stream(self, user_id, username, session_id, state="playing"):
         """Arrêter manuellement un stream (depuis l'interface)"""
         return self.stop_stream(user_id, username, session_id, state)
