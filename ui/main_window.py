@@ -55,7 +55,6 @@ class PlexPatrolApp(QMainWindow):
         self.refresh_counter_label.setAlignment(Qt.AlignRight)
         self.refresh_timer = QTimer()
         self.refresh_timer.timeout.connect(self.update_refresh_counter)
-        self.refresh_timer.start(1000)  # Mise à jour chaque seconde
         self.last_poll_time = time.time()
 
         # Configuration initiale si nécessaire
@@ -97,6 +96,9 @@ class PlexPatrolApp(QMainWindow):
 
         # Démarrer la surveillance
         self.stream_monitor.start()
+
+        # Démarrer le timer maintenant que stream_monitor est initialisé
+        self.refresh_timer.start(1000)  # Mise à jour chaque seconde
 
         # Configurer l'icône de la barre des tâches
         self.setup_tray_icon()
@@ -838,7 +840,8 @@ class PlexPatrolApp(QMainWindow):
     def update_refresh_counter(self):
         """Mettre à jour le compteur de rafraîchissement"""
         if (
-            hasattr(self.stream_monitor, "last_poll_time")
+            hasattr(self, "stream_monitor")
+            and hasattr(self.stream_monitor, "last_poll_time")
             and not self.stream_monitor.is_paused
         ):
             elapsed = time.time() - self.stream_monitor.last_poll_time
