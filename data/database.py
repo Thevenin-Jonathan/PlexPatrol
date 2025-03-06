@@ -445,6 +445,65 @@ class PlexPatrolDB:
             logging.error(f"Erreur lors de l'enregistrement de la session: {str(e)}")
             return False
 
+    def record_stream_termination(self, user_id, username, platform):
+        """
+        Enregistre la terminaison d'un flux et met à jour les statistiques
+
+        Args:
+            user_id (str): ID de l'utilisateur Plex
+            username (str): Nom d'utilisateur
+            platform (str): Plateforme utilisée
+        """
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+
+            # 1. S'assurer que l'utilisateur existe
+            cursor.execute(
+                """
+                INSERT OR IGNORE INTO plex_users (id, username, last_seen) 
+                VALUES (?, ?, ?)
+                """,
+                (user_id, username, datetime.now().isoformat()),
+            )
+
+            # 2. Mettre à jour les compteurs de plateforme
+            cursor.execute(
+                """
+                INSERT OR IGNORE INTO platform_stats (user_id, platform, count)
+                VALUES (?, ?, 0)
+                """,
+                (user_id, platform),
+            )
+
+            cursor.execute(
+                """
+                UPDATE platform_stats
+                SET count = count + 1
+                WHERE user_id = ? AND platform = ?
+                """,
+                (user_id, platform),
+            )
+
+            # 3. Mettre à jour la dernière terminaison
+            cursor.execute(
+                """
+                UPDATE plex_users
+                SET last_kill = ?, terminated_sessions = COALESCE(terminated_sessions, 0) + 1
+                WHERE id = ?
+                """,
+                (datetime.now().isoformat(), user_id),
+            )
+
+            conn.commit()
+            conn.close()
+            return True
+        except Exception as e:
+            logging.error(
+                f"Erreur lors de l'enregistrement de la terminaison du flux: {str(e)}"
+            )
+            return False
+
     def mark_session_terminated(self, session_id):
         """Marquer une session comme terminée"""
         try:
@@ -479,59 +538,50 @@ class PlexPatrolDB:
             cursor = conn.cursor()
 
             if user_id:
-                cursor.execute(
-                    """
+                query = """
                 SELECT 
                     u.id, u.username, 
-                    COUNT(s.id) AS total_sessions,
-                    SUM(CASE WHEN s.was_terminated = 1 THEN 1 ELSE 0 END) AS terminated_sessions,
-                    u.last_seen,
-                    u.is_whitelisted,
-                    u.max_streams
+                    COALESCE(u.total_sessions, 0) AS total_sessions,
+                    COALESCE(u.terminated_sessions, 0) AS kill_count,
+                    u.last_kill,
+                    u.last_seen
                 FROM plex_users u
-                LEFT JOIN sessions s ON u.id = s.user_id
                 WHERE u.id = ?
-                GROUP BY u.id
-                """,
-                    (user_id,),
-                )
+                """
+                cursor.execute(query, (user_id,))
             else:
-                cursor.execute(
-                    """
+                query = """
                 SELECT 
                     u.id, u.username, 
-                    COUNT(s.id) AS total_sessions,
-                    SUM(CASE WHEN s.was_terminated = 1 THEN 1 ELSE 0 END) AS terminated_sessions,
-                    u.last_seen,
-                    u.is_whitelisted,
-                    u.max_streams
+                    COALESCE(u.total_sessions, 0) AS total_sessions,
+                    COALESCE(u.terminated_sessions, 0) AS kill_count,
+                    u.last_kill,
+                    u.last_seen
                 FROM plex_users u
-                LEFT JOIN sessions s ON u.id = s.user_id
-                GROUP BY u.id
                 """
-                )
+                cursor.execute(query)
 
-            results = [dict(row) for row in cursor.fetchall()]
+            results = []
+            for row in cursor.fetchall():
+                user = dict(row)
 
-            # Pour chaque utilisateur, récupérer sa plateforme principale
-            for user in results:
+                # Récupérer les plateformes pour chaque utilisateur
                 cursor.execute(
                     """
-                SELECT platform, COUNT(*) AS count
-                FROM sessions
-                WHERE user_id = ?
-                GROUP BY platform
-                ORDER BY count DESC
-                LIMIT 1
-                """,
+                    SELECT platform, count
+                    FROM platform_stats
+                    WHERE user_id = ?
+                    ORDER BY count DESC
+                    """,
                     (user["id"],),
                 )
 
-                platform_data = cursor.fetchone()
-                if platform_data:
-                    user["main_platform"] = platform_data["platform"]
-                else:
-                    user["main_platform"] = "Inconnue"
+                platforms = {}
+                for platform_row in cursor.fetchall():
+                    platforms[platform_row["platform"]] = platform_row["count"]
+
+                user["platforms"] = platforms
+                results.append(user)
 
             conn.close()
             return results

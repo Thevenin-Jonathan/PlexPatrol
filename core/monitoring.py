@@ -415,16 +415,8 @@ class StreamMonitor(QThread):
 
                 self.new_log.emit(log_message, "SUCCESS")
 
-                # Mettre à jour les statistiques
-                stats = load_stats()
-                stats = update_user_stats(
-                    stats,
-                    username,
-                    stream_count=len(all_streams),
-                    stream_killed=True,
-                    platform=platform,
-                )
-                save_stats(stats)
+                # Mettre à jour les statistiques directement en base de données
+                self.db.record_stream_termination(user_id, username, platform)
             else:
                 self.logger.warning(
                     f"Échec de l'arrêt du flux {session_id} pour {username}"
@@ -488,11 +480,67 @@ class StreamMonitor(QThread):
             response = requests.get(url, params=params, headers=headers, timeout=10)
             if response.status_code == 200:
                 self.db.mark_session_terminated(session_id)
+
+                # Récupérer les informations sur le flux depuis la base de données
+                session_info = self.db.get_session_info(session_id)
+
+                platform = "Inconnu"
+                if session_info:
+                    platform = session_info.get("platform", "Inconnu")
+
+                # Enregistrer la terminaison pour les statistiques
+                self.db.record_stream_termination(user_id, username, platform)
+
+                # Ajouter ces lignes pour les logs d'interface
+                self.logger.info(
+                    f"Stream {session_id} arrêté pour {username} (compte désactivé)"
+                )
+                self.new_log.emit(
+                    f"Stream arrêté pour {username} (compte désactivé)", "SUCCESS"
+                )
+
                 return True
             return False
         except requests.exceptions.RequestException as e:
             self.logger.error(f"Erreur lors de l'arrêt du stream: {str(e)}")
             return False
+
+    def get_session_info(self, session_id):
+        """
+        Récupère les informations d'une session
+
+        Args:
+            session_id (str): L'ID de la session
+
+        Returns:
+            dict: Les informations de la session ou None si non trouvée
+        """
+        try:
+            conn = sqlite3.connect(self.db_path)
+            conn.row_factory = sqlite3.Row  # Pour accéder aux colonnes par nom
+            cursor = conn.cursor()
+
+            cursor.execute(
+                """
+                SELECT * FROM sessions
+                WHERE session_id = ?
+                ORDER BY timestamp DESC
+                LIMIT 1
+                """,
+                (session_id,),
+            )
+
+            row = cursor.fetchone()
+            conn.close()
+
+            if row:
+                return dict(row)
+            return None
+        except Exception as e:
+            logging.error(
+                f"Erreur lors de la récupération des infos de session: {str(e)}"
+            )
+            return None
 
     def manual_stop_stream(self, user_id, username, session_id, state="playing"):
         """Arrêter manuellement un stream (depuis l'interface)"""

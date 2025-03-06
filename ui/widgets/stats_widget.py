@@ -1,3 +1,5 @@
+from datetime import time
+import os
 from PyQt5.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -8,7 +10,9 @@ from PyQt5.QtWidgets import (
     QHBoxLayout,
 )
 from PyQt5.QtCore import Qt
-from utils.constants import UIMessages, TableColumns, Paths
+from data.database import PlexPatrolDB
+from utils.constants import LogLevels, LogMessages, UIMessages, TableColumns, Paths
+from utils.helpers import get_app_path
 
 
 class StatsWidget(QWidget):
@@ -51,7 +55,8 @@ class StatsWidget(QWidget):
 
     def load_stats(self):
         """Charger les statistiques depuis la base de données"""
-        self.stats = load_stats()
+        db = PlexPatrolDB()
+        self.stats = db.get_user_stats()
         self.update_stats_table()
 
     def update_stats_table(self):
@@ -99,9 +104,56 @@ class StatsWidget(QWidget):
 
     def export_stats(self):
         """Exporter les statistiques au format CSV"""
-        # À implémenter
-        self.add_log(UIMessages.STATS_EXPORTED.format(filepath=filepath))
-        pass
+        now = time.strftime("%Y%m%d_%H%M%S", time.localtime())
+        stats_path = os.path.join(get_app_path(), "exports")
+
+        if not os.path.exists(stats_path):
+            os.makedirs(stats_path)
+
+        filepath = os.path.join(stats_path, f"PlexPatrol_stats_{now}.csv")
+
+        try:
+            db = PlexPatrolDB()
+            user_stats = db.get_user_stats()
+
+            with open(filepath, "w", encoding="utf-8") as f:
+                # Écrire l'en-tête
+                f.write(
+                    "Utilisateur,Arrêts de flux,Dernier arrêt,Plateforme la plus utilisée,Taux d'arrêts\n"
+                )
+
+                # Écrire les données
+                for user in user_stats:
+                    username = user["username"]
+                    kill_count = user["kill_count"]
+                    last_kill = user["last_kill"] or "Jamais"
+
+                    platforms = user["platforms"]
+                    most_used = (
+                        max(platforms.items(), key=lambda x: x[1])[0]
+                        if platforms
+                        else "Inconnue"
+                    )
+
+                    total_sessions = user["total_sessions"]
+                    kill_rate = (
+                        f"{(kill_count / total_sessions) * 100:.1f}%"
+                        if total_sessions > 0
+                        else "N/A"
+                    )
+
+                    f.write(
+                        f"{username},{kill_count},{last_kill},{most_used},{kill_rate}\n"
+                    )
+
+            self.add_log(
+                UIMessages.STATS_EXPORTED.format(filepath=filepath), LogLevels.SUCCESS
+            )
+        except Exception as e:
+            self.add_log(
+                f"{LogMessages.STATS_EXPORT_ERROR.format(error=str(e))}",
+                LogLevels.ERROR,
+            )
 
     def reset_stats(self):
         """Réinitialiser les statistiques"""
