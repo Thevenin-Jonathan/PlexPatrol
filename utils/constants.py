@@ -43,10 +43,20 @@ class UIMessages:
     FIRST_TIME_SETUP_TITLE = "Configuration initiale PlexPatrol"
 
     # Messages de terminaison de flux pour l'utilisateur
+    TERMINATION_MESSAGE_DEFAULT = (
+        "Votre abonnement ne vous permet pas la lecture sur plusieurs écrans."
+    )
     TERMINATION_MESSAGE_PAUSED = (
         "Lecture arrêtée car une nouvelle lecture a été démarrée sur un autre appareil."
     )
     TERMINATION_MESSAGE_PLAYING = "Votre session a été arrêtée car vous avez dépassé le nombre maximum d'écrans autorisés."
+
+    # Messages pour le dialogue d'arrêt de flux
+    TITLE_STOP_STREAM = "Arrêter le flux"
+    STOP_STREAM_INSTRUCTION = "Saisissez un message à afficher à l'utilisateur:"
+    STOP_STREAM_PLACEHOLDER = "Entrez votre message personnalisé ici..."
+    CUSTOM_MESSAGE = "Message personnalisé..."
+    BTN_CANCEL = "Annuler"
 
     # Titres de boîtes de message
     TITLE_SUCCESS = "Succès"

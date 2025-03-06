@@ -424,6 +424,31 @@ class StreamMonitor(QThread):
             self.logger.error(f"Erreur lors de l'arrêt du stream: {str(e)}")
             return False
 
+    def stop_stream_with_message(self, user_id, username, session_id, custom_message):
+        """
+        Arrêter un stream spécifique avec un message personnalisé
+
+        Args:
+            user_id: ID de l'utilisateur
+            username: Nom de l'utilisateur
+            session_id: ID de la session à arrêter
+            custom_message: Message personnalisé à afficher
+        """
+        url = f"{self.config.plex_server_url}/status/sessions/terminate"
+
+        params = {"sessionId": session_id, "reason": custom_message}
+        headers = {"X-Plex-Token": self.config.plex_token}
+
+        try:
+            response = requests.get(url, params=params, headers=headers, timeout=10)
+            if response.status_code == 200:
+                self.db.mark_session_terminated(session_id)
+                return True
+            return False
+        except requests.exceptions.RequestException as e:
+            self.logger.error(f"Erreur lors de l'arrêt du stream: {str(e)}")
+            return False
+
     def manual_stop_stream(self, user_id, username, session_id, state="playing"):
         """Arrêter manuellement un stream (depuis l'interface)"""
         return self.stop_stream(user_id, username, session_id, state)

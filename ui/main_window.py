@@ -19,14 +19,14 @@ from PyQt5.QtWidgets import (
     QGroupBox,
     QSystemTrayIcon,
     QMenu,
+    QDialog,
 )
 from PyQt5.QtCore import Qt, QTimer, QSize
 from PyQt5.QtGui import QIcon, QTextCursor
 
 # Importer les modules personnalisés
 from core import StreamMonitor
-from ui.dialogs import ConfigDialog
-from ui.dialogs import StatisticsDialog
+from ui.dialogs import ConfigDialog, StatisticsDialog, MessageDialog
 from config.config_manager import config
 from utils import get_app_path
 from utils.constants import (
@@ -446,6 +446,7 @@ class PlexPatrolApp(QMainWindow):
                 stop_button = QPushButton(UIMessages.BTN_STOP)
                 stop_button.setProperty("session_id", session_id)
                 stop_button.setProperty("username", username)
+                stop_button.setProperty("state", state)
                 stop_button.clicked.connect(self.stop_session)
 
                 self.sessions_table.setCellWidget(row, 7, stop_button)
@@ -485,31 +486,55 @@ class PlexPatrolApp(QMainWindow):
             self.status_label.setText("Surveillance active")
 
     def stop_session(self):
-        """Arrêter une session spécifique"""
+        """Arrêter une session spécifique avec un message personnalisé"""
         sender = self.sender()
         session_id = sender.property("session_id")
         username = sender.property("username")
+        state = sender.property("state")  # Récupérer l'état du flux
 
         # Demander confirmation
         reply = QMessageBox.question(
             self,
-            "Confirmation",
-            f"Voulez-vous vraiment arrêter la session de {username}?",
+            UIMessages.TITLE_CONFIRMATION,
+            UIMessages.CONFIRM_SESSION_STOP.format(username=username),
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No,
         )
 
         if reply == QMessageBox.Yes:
-            success = self.stream_monitor.manual_stop_stream(None, username, session_id)
-            if success:
-                self.add_log(f"Session {session_id} arrêtée manuellement", "SUCCESS")
-            else:
-                self.add_log(
-                    f"Échec de l'arrêt manuel de la session {session_id}", "ERROR"
+            # Ouvrir le dialogue pour saisir le message
+            dialog = MessageDialog(self)
+
+            if dialog.exec_() == QDialog.Accepted:
+                # Récupérer le message personnalisé
+                custom_message = dialog.get_message()
+
+                # Si le message est vide, utiliser un message par défaut
+                if not custom_message:
+                    if state == "paused":
+                        custom_message = UIMessages.TERMINATION_MESSAGE_PAUSED
+                    elif state == "playing":
+                        custom_message = UIMessages.TERMINATION_MESSAGE_PLAYING
+                    else:
+                        custom_message = self.config.termination_message
+
+                # Arrêter le flux avec le message personnalisé
+                success = self.stream_monitor.stop_stream_with_message(
+                    None, username, session_id, custom_message
                 )
 
-            # Rafraîchir le tableau après quelques secondes
-            QTimer.singleShot(5000, self.refresh_sessions)
+                if success:
+                    self.add_log(
+                        f"Session {session_id} arrêtée manuellement avec message personnalisé",
+                        "SUCCESS",
+                    )
+                else:
+                    self.add_log(
+                        f"Échec de l'arrêt manuel de la session {session_id}", "ERROR"
+                    )
+
+                # Rafraîchir le tableau après quelques secondes
+                QTimer.singleShot(5000, self.refresh_sessions)
 
     def refresh_sessions(self):
         """Forcer la mise à jour des sessions actives"""
