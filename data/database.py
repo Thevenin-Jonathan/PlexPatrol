@@ -469,16 +469,6 @@ class PlexPatrolDB:
                 (user_id, platform),
             )
 
-            # 3. Mettre à jour la dernière terminaison
-            cursor.execute(
-                """
-                UPDATE plex_users
-                SET last_kill = ?, terminated_sessions = COALESCE(terminated_sessions, 0) + 1
-                WHERE id = ?
-                """,
-                (datetime.now().isoformat(), user_id),
-            )
-
             conn.commit()
             conn.close()
             return True
