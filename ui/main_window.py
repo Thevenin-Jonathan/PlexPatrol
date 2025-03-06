@@ -50,6 +50,14 @@ class PlexPatrolApp(QMainWindow):
         )
         self.resize(1400, 800)
 
+        # Ajouter le timer et le label pour le compteur de rafraîchissement
+        self.refresh_counter_label = QLabel()
+        self.refresh_counter_label.setAlignment(Qt.AlignRight)
+        self.refresh_timer = QTimer()
+        self.refresh_timer.timeout.connect(self.update_refresh_counter)
+        self.refresh_timer.start(1000)  # Mise à jour chaque seconde
+        self.last_poll_time = time.time()
+
         # Configuration initiale si nécessaire
         from config.config_manager import config
 
@@ -200,6 +208,12 @@ class PlexPatrolApp(QMainWindow):
         tab = QWidget()
         layout = QVBoxLayout(tab)
 
+        # Ajouter le compteur de rafraîchissement en haut
+        refresh_layout = QHBoxLayout()
+        refresh_layout.addStretch()  # Pour pousser le label à droite
+        refresh_layout.addWidget(self.refresh_counter_label)
+        layout.addLayout(refresh_layout)
+
         # Tableau des sessions actives
         sessions_group = QGroupBox(UIMessages.GROUP_ACTIVE_SESSIONS)
         group_layout = QVBoxLayout(sessions_group)
@@ -249,6 +263,17 @@ class PlexPatrolApp(QMainWindow):
         group_layout.addLayout(buttons_layout)
 
         layout.addWidget(sessions_group)
+
+        # Styliser le compteur
+        self.refresh_counter_label.setStyleSheet(
+            """
+            QLabel {
+                color: #8a8a8a;
+                font-size: 12px;
+                padding: 5px;
+            }
+        """
+        )
 
         return tab
 
@@ -464,6 +489,9 @@ class PlexPatrolApp(QMainWindow):
         self.tabs.setTabText(0, f"Sessions actives ({row})")
         self.sessions_table.sortItems(0, Qt.AscendingOrder)
 
+        # Réinitialiser le compteur de rafraîchissement
+        self.reset_refresh_counter()
+
     def update_connection_status(self, is_connected):
         """Mettre à jour l'indicateur de connexion"""
         if is_connected:
@@ -480,10 +508,15 @@ class PlexPatrolApp(QMainWindow):
             self.toggle_action.setText("Reprendre")
             self.status_indicator.setStyleSheet("color: orange; font-size: 16px;")
             self.status_label.setText("Surveillance en pause")
+            # Arrêter le compteur
+            self.refresh_timer.stop()
+            self.refresh_counter_label.setText("Surveillance en pause")
         else:
             self.toggle_action.setText("Pause")
             self.status_indicator.setStyleSheet("color: green; font-size: 16px;")
             self.status_label.setText("Surveillance active")
+            # Redémarrer le compteur
+            self.reset_refresh_counter()
 
     def stop_session(self):
         """Arrêter une session spécifique avec un message personnalisé"""
@@ -801,3 +834,27 @@ class PlexPatrolApp(QMainWindow):
         # Par :
         menu_bar = self.menuBar()
         file_menu = menu_bar.addMenu(UIMessages.MENU_FILE)
+
+    def update_refresh_counter(self):
+        """Mettre à jour le compteur de rafraîchissement"""
+        if (
+            hasattr(self.stream_monitor, "last_poll_time")
+            and not self.stream_monitor.is_paused
+        ):
+            elapsed = time.time() - self.stream_monitor.last_poll_time
+            remaining = max(0, self.stream_monitor.config.check_interval - int(elapsed))
+            self.refresh_counter_label.setText(
+                f"Prochain rafraîchissement dans: {remaining}s"
+            )
+        else:
+            self.refresh_counter_label.setText("Surveillance en pause")
+
+    def reset_refresh_counter(self):
+        """Réinitialiser le compteur après un rafraîchissement"""
+        # Obtenir l'intervalle de vérification de la configuration
+        check_interval = config.get(ConfigKeys.CHECK_INTERVAL, 30)
+        self.refresh_counter = check_interval
+
+        # Arrêter le timer s'il est en cours et le redémarrer
+        self.refresh_timer.stop()
+        self.refresh_timer.start(1000)  # Timer de 1 seconde
