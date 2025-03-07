@@ -239,16 +239,7 @@ class StreamMonitor(QThread):
     def check_stream_conditions(self, user_streams):
         """
         Vérifier les conditions des flux et arrêter ceux qui dépassent les limites
-        Nouvelle logique:
-        1. Vérifier le nombre de flux par utilisateur
-        2. Si dépassement:
-        a. Arrêter d'abord les flux en pause
-        b. Si encore trop, arrêter les flux en lecture
         """
-        # Obtenir les paramètres globaux
-        whitelist_ids = self.config.get("rules.whitelist", [])
-        default_max_streams = self.config.get("rules.max_streams", 2)
-
         for user_id, streams in user_streams.items():
             # Obtenir le nom d'utilisateur du premier stream pour les logs
             username = streams[0][8] if streams else "Inconnu"
@@ -289,20 +280,10 @@ class StreamMonitor(QThread):
 
                 continue  # Passer à l'utilisateur suivant
 
-            # Vérifier si l'utilisateur est dans la liste blanche
-            if user_id in whitelist_ids or self.db.is_user_whitelisted(user_id):
-                continue
-
-            # Obtenir le nom d'utilisateur du premier stream pour les logs
-            username = streams[0][8] if streams else "Inconnu"
-
             # Récupérer la limite personnalisée de l'utilisateur
-            user_max_streams = self.db.get_user_max_streams(user_id)
-            max_streams = (
-                user_max_streams
-                if user_max_streams is not None
-                else default_max_streams
-            )
+            max_streams = self.db.get_user_max_streams(user_id)
+            if max_streams is None:
+                continue  # Pas de limite définie pour cet utilisateur
 
             # Nombre total de flux pour cet utilisateur (unique par appareil + IP)
             unique_streams = {}

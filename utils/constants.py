@@ -13,9 +13,7 @@ class ConfigKeys:
     CHECK_INTERVAL = "plex_server.check_interval"
 
     # Règles
-    MAX_STREAMS = "rules.max_streams"
     TERMINATION_MESSAGE = "rules.termination_message"
-    WHITELIST = "rules.whitelist"
 
     # Notifications
     TELEGRAM_ENABLED = "telegram.enabled"
@@ -27,7 +25,6 @@ class ConfigKeys:
 class Defaults:
     PLEX_SERVER_URL = "http://localhost:32400"
     CHECK_INTERVAL = 30
-    MAX_STREAMS = 2
     TERMINATION_MESSAGE = (
         "Votre abonnement ne vous permet pas la lecture sur plusieurs écrans."
     )
@@ -161,8 +158,6 @@ class UIMessages:
     CONFIG_SERVER_URL_LABEL = "URL du serveur Plex:"
     CONFIG_TOKEN_LABEL = "Token d'authentification:"
     CONFIG_INTERVAL_LABEL = "Intervalle de vérification (secondes):"
-    CONFIG_MAX_STREAMS_LABEL = "Nombre maximum de flux par utilisateur:"
-    CONFIG_TERM_MSG_LABEL = "Message de terminaison:"
     CONFIG_TELEGRAM_ENABLE_LABEL = "Activer les notifications Telegram:"
     CONFIG_TELEGRAM_TOKEN_LABEL = "Token du bot Telegram:"
     CONFIG_TELEGRAM_GROUP_LABEL = "ID du groupe/canal Telegram:"
