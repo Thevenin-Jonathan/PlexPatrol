@@ -58,6 +58,21 @@ class ConfigDialog(QDialog):
         self.check_interval.setSuffix(" secondes")
         server_layout.addRow(UIMessages.CONFIG_INTERVAL_LABEL, self.check_interval)
 
+        # Ajouter le champ termination_message s'il manque
+        self.termination_message_label = QLabel("Message de terminaison:")
+        self.termination_message = QLineEdit()
+        self.termination_message.setPlaceholderText(
+            "Message à envoyer lors de la terminaison"
+        )
+        # Définir une valeur par défaut ou charger depuis la config
+        self.termination_message.setText(
+            self.config_manager.get(
+                ConfigKeys.TERMINATION_MESSAGE,
+                "Votre session a été terminée en raison d'une violation des règles d'utilisation",
+            )
+        )
+        server_layout.addRow(self.termination_message_label, self.termination_message)
+
         # Bouton pour tester la connexion
         test_btn = QPushButton("Tester la connexion")
         test_btn.clicked.connect(self.test_connection)

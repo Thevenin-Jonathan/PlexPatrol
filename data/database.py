@@ -422,29 +422,36 @@ class PlexPatrolDB:
             return False
 
     def mark_session_terminated(self, session_id):
-        """Marquer une session comme terminée"""
+        """Marque une session comme terminée"""
         try:
+            # D'abord, récupérer les infos de la session
+            session_info = self.get_session_info(session_id)
+            if not session_info:
+                logging.error(f"Session {session_id} introuvable")
+                return False
+
+            user_id = session_info.get("user_id")
+            username = session_info.get("username")
+            platform = session_info.get("platform")
+
+            # Ensuite, mettre à jour la session
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
-
-            now = datetime.now().isoformat()
-
             cursor.execute(
-                """
-            UPDATE sessions 
-            SET end_time = ?, was_terminated = 1
-            WHERE session_id = ? AND end_time IS NULL
-            """,
-                (now, session_id),
+                "UPDATE sessions SET was_terminated = 1 WHERE session_id = ?",
+                (session_id,),
             )
-
             conn.commit()
             conn.close()
-            return (
-                cursor.rowcount > 0
-            )  # Retourne True si au moins une ligne a été mise à jour
+
+            # Mettre à jour les statistiques
+            self.record_stream_termination(user_id, username, platform)
+
+            return True
         except Exception as e:
-            logging.error(f"Erreur lors du marquage de fin de session: {str(e)}")
+            logging.error(
+                f"Erreur lors du marquage de la session comme terminée: {str(e)}"
+            )
             return False
 
     def get_session_info(self, session_id):

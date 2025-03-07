@@ -8,15 +8,20 @@ from PyQt5.QtWidgets import (
     QHeaderView,
     QPushButton,
     QHBoxLayout,
+    QMessageBox,
 )
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, pyqtSignal
 from data.database import PlexPatrolDB
 from utils.constants import LogLevels, LogMessages, UIMessages, TableColumns, Paths
 from utils.helpers import get_app_path
+import sqlite3
 
 
 class StatsWidget(QWidget):
     """Widget pour afficher les statistiques des utilisateurs"""
+
+    # Ajouter un signal de log pour communiquer avec la fenêtre principale
+    log_signal = pyqtSignal(str, str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -157,6 +162,41 @@ class StatsWidget(QWidget):
 
     def reset_stats(self):
         """Réinitialiser les statistiques"""
-        # À implémenter
-        self.add_log(UIMessages.STATS_RESET)
-        pass
+        try:
+            # Dialogue de confirmation
+            msg_box = QMessageBox()
+            msg_box.setIcon(QMessageBox.Warning)
+            msg_box.setText(
+                "Êtes-vous sûr de vouloir réinitialiser toutes les statistiques?"
+            )
+            msg_box.setInformativeText("Cette action ne peut pas être annulée.")
+            msg_box.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+            msg_box.setDefaultButton(QMessageBox.No)
+
+            if msg_box.exec_() == QMessageBox.Yes:
+                # Réinitialiser les stats dans la BDD
+                db = PlexPatrolDB()
+                conn = sqlite3.connect(db.db_path)
+                cursor = conn.cursor()
+
+                # Réinitialiser les compteurs d'arrêt dans plex_users
+                cursor.execute(
+                    "UPDATE plex_users SET terminated_sessions = 0, last_kill = NULL"
+                )
+
+                # Vider la table des stats de plateforme
+                cursor.execute("DELETE FROM platform_stats")
+
+                conn.commit()
+                conn.close()
+
+                # Rafraîchir l'affichage
+                self.load_stats()
+
+                # Émettre le signal pour informer la fenêtre principale
+                self.log_signal.emit(UIMessages.STATS_RESET, LogLevels.INFO)
+        except Exception as e:
+            self.log_signal.emit(
+                f"Erreur lors de la réinitialisation des statistiques: {str(e)}",
+                LogLevels.ERROR,
+            )
