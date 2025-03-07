@@ -1,0 +1,24 @@
+Recommandations futures
+Tests unitaires : Créer un dossier tests/ avec des tests pour vos composants principaux
+Documentation : Ajouter plus de docstrings aux classes et méthodes
+Gestion des erreurs : Ajouter plus de try/except pour une meilleure résilience.
+Packaging : Créer un fichier setup.py pour faciliter l'installation via pip.
+
+
+Qt Quick QML
+[Description: Mockup d'une grille de sessions avec des jaquettes et barres de progression]
+┌─────────────────────────────────────────────────────────────┐
+│ ┌──────────┐  Titre: Avengers: Endgame                    X │
+│ │          │  Utilisateur: Jean                             │
+│ │  JAQUETTE│  Appareil: Roku TV                             │
+│ │          │  Qualité: 1080p                                │
+│ │          │  Durée: 01:34:27 / 03:01:45                    │
+│ └──────────┘  ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░░░░░░░░░░  49%            │
+├─────────────────────────────────────────────────────────────┤
+│ ┌──────────┐  Titre: The Mandalorian S02E05               X │
+│ │          │  Utilisateur: Marie                            │
+│ │  JAQUETTE│  Appareil: Android TV                          │
+│ │          │  Qualité: 720p                                 │
+│ │          │  Durée: 00:12:34 / 00:45:00                    │
+│ └──────────┘  ▓▓▓▓▓░░░░░░░░░░░░░░░░░░░░░░░░  28%            │
+└─────────────────────────────────────────────────────────────┘

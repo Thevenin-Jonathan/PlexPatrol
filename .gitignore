@@ -87,5 +87,3 @@ tmp/
 *.pyo
 assets/custom/*
 !assets/default/*
-
-recommandations.txt
