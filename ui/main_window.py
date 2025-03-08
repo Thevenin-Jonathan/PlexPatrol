@@ -20,6 +20,7 @@ from PyQt5.QtWidgets import (
     QSystemTrayIcon,
     QMenu,
     QDialog,
+    QSizePolicy,
 )
 from PyQt5.QtCore import Qt, QTimer, QSize
 from PyQt5.QtGui import QIcon, QTextCursor
@@ -49,6 +50,8 @@ class PlexPatrolApp(QMainWindow):
             QIcon(os.path.join(get_app_path(), Paths.ASSETS, Paths.ICON))
         )
         self.resize(1400, 800)
+
+        self._first_minimize = True
 
         # Ajouter le timer et le label pour le compteur de rafraîchissement
         self.refresh_counter_label = QLabel()
@@ -102,6 +105,9 @@ class PlexPatrolApp(QMainWindow):
 
         # Configurer l'icône de la barre des tâches
         self.setup_tray_icon()
+
+        # Ajouter le bouton "Minimiser dans le tray" dans la barre de titre
+        self.setup_tray_minimize_button()
 
     def load_plex_users(self):
         """Charge la liste des utilisateurs Plex depuis le serveur"""
@@ -414,6 +420,18 @@ class PlexPatrolApp(QMainWindow):
                 self.hide()
             else:
                 self.show()
+
+    def hide(self):
+        """Surcharge pour afficher un message lors de la première minimisation"""
+        if hasattr(self, "_first_minimize") and self._first_minimize:
+            self.tray_icon.showMessage(
+                "PlexPatrol",
+                "L'application continue de surveiller en arrière-plan.\nDouble-cliquez sur l'icône pour restaurer.",
+                QSystemTrayIcon.Information,
+                2000,
+            )
+            self._first_minimize = False
+        super().hide()
 
     def add_log(self, message, level="INFO"):
         """Ajouter un message au journal des événements"""
@@ -849,3 +867,46 @@ class PlexPatrolApp(QMainWindow):
         # Arrêter le timer s'il est en cours et le redémarrer
         self.refresh_timer.stop()
         self.refresh_timer.start(1000)  # Timer de 1 seconde
+
+    def setup_tray_minimize_button(self):
+        """Configure un bouton personnalisé pour minimiser dans le tray"""
+        # Créer un widget pour contenir le bouton
+        from PyQt5.QtWidgets import QToolButton, QStyle, QWidget, QHBoxLayout
+        from PyQt5.QtCore import QSize, Qt
+
+        # Créer une barre d'outils pour le bouton de minimisation dans le tray
+        tray_toolbar = QToolBar("Tray Toolbar", self)
+        tray_toolbar.setMovable(False)
+        tray_toolbar.setFloatable(False)
+        tray_toolbar.setIconSize(QSize(16, 16))
+
+        # Créer un widget d'espacement qui pousse le bouton vers la droite
+        spacer = QWidget()
+        spacer.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        tray_toolbar.addWidget(spacer)
+
+        # Créer le bouton avec l'icône du tray
+        self.tray_button = QToolButton(self)
+        self.tray_button.setIcon(
+            QIcon(os.path.join(get_app_path(), "assets", "minimize_tray.png"))
+        )
+        self.tray_button.setToolTip("Minimiser dans la zone de notification")
+        self.tray_button.setFixedSize(QSize(30, 30))
+        self.tray_button.clicked.connect(self.minimize_to_tray)
+
+        # Ajouter le bouton après le spacer (donc aligné à droite)
+        tray_toolbar.addWidget(self.tray_button)
+
+        # Ajouter la barre d'outils en haut
+        self.addToolBar(Qt.TopToolBarArea, tray_toolbar)
+
+    def minimize_to_tray(self):
+        """Minimiser l'application dans la zone de notification"""
+        # Afficher un message dans le tray pour informer l'utilisateur (facultatif)
+        self.tray_icon.showMessage(
+            "PlexPatrol",
+            "L'application continue de surveiller en arrière-plan.\nDouble-cliquez sur l'icône pour restaurer.",
+            QSystemTrayIcon.Information,
+            2000,
+        )
+        self.hide()  # Cacher la fenêtre principale
