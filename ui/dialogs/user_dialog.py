@@ -15,6 +15,7 @@ from PyQt5.QtWidgets import (
     QGridLayout,
     QGroupBox,
     QLabel,
+    QComboBox,
 )
 from PyQt5.QtCore import Qt
 from data.database import PlexPatrolDB
@@ -42,7 +43,7 @@ class UserManagementDialog(QDialog):
         self.users_table.setHorizontalHeaderLabels(TableColumns.USERS)
         self.users_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.users_table.setSelectionBehavior(QTableWidget.SelectRows)
-        self.users_table.setSelectionMode(QTableWidget.SingleSelection)
+        self.users_table.setSelectionMode(QTableWidget.ExtendedSelection)
         self.users_table.itemSelectionChanged.connect(self.on_user_selected)
 
         # Activer le tri du tableau
@@ -100,14 +101,18 @@ class UserManagementDialog(QDialog):
         # Boutons d'action
         buttons_layout = QHBoxLayout()
 
+        refresh_btn = QPushButton(UIMessages.BTN_REFRESH)
+        refresh_btn.clicked.connect(self.load_users)
+        buttons_layout.addWidget(refresh_btn)
+
+        bulk_edit_btn = QPushButton("Édition en masse")
+        bulk_edit_btn.clicked.connect(self.bulk_edit_selected)
+        buttons_layout.addWidget(bulk_edit_btn)
+
         self.save_btn = QPushButton(UIMessages.BTN_SAVE)
         self.save_btn.clicked.connect(self.save_user)
         self.save_btn.setEnabled(False)
         buttons_layout.addWidget(self.save_btn)
-
-        refresh_btn = QPushButton(UIMessages.BTN_REFRESH)
-        refresh_btn.clicked.connect(self.load_users)
-        buttons_layout.addWidget(refresh_btn)
 
         close_btn = QPushButton(UIMessages.BTN_CLOSE)
         close_btn.clicked.connect(self.accept)
@@ -283,6 +288,126 @@ class UserManagementDialog(QDialog):
             )
             # Reload the table to restore original values
             self.load_users()
+
+    def bulk_edit_selected(self):
+        """Modifier en masse les utilisateurs sélectionnés"""
+        # Récupérer les lignes sélectionnées
+        selected_items = self.users_table.selectedItems()
+
+        if not selected_items:
+            QMessageBox.warning(self, "Attention", "Aucun utilisateur sélectionné")
+            return
+
+        # Récupérer les lignes uniques (car selectedItems renvoie un item pour chaque cellule)
+        selected_rows = set(item.row() for item in selected_items)
+
+        # Créer une boîte de dialogue pour l'édition en masse
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Édition en masse")
+        dialog.setMinimumWidth(400)
+
+        layout = QVBoxLayout(dialog)
+
+        # Options d'édition
+        form_layout = QGridLayout()
+
+        # Champs que l'utilisateur peut modifier en masse
+        # Option Max Streams
+        max_streams_check = QCheckBox("Modifier le nombre max de flux")
+        form_layout.addWidget(max_streams_check, 0, 0)
+
+        max_streams_spin = QSpinBox()
+        max_streams_spin.setRange(1, 10)
+        max_streams_spin.setValue(2)  # Valeur par défaut
+        max_streams_spin.setEnabled(False)
+        form_layout.addWidget(max_streams_spin, 0, 1)
+        max_streams_check.toggled.connect(max_streams_spin.setEnabled)
+
+        # Option Whitelist
+        whitelist_check = QCheckBox("Modifier le statut whitelist")
+        form_layout.addWidget(whitelist_check, 1, 0)
+
+        whitelist_options = QComboBox()
+        whitelist_options.addItems(["Non", "Oui"])
+        whitelist_options.setEnabled(False)
+        form_layout.addWidget(whitelist_options, 1, 1)
+        whitelist_check.toggled.connect(whitelist_options.setEnabled)
+
+        # Option Disabled
+        disabled_check = QCheckBox("Modifier le statut désactivé")
+        form_layout.addWidget(disabled_check, 2, 0)
+
+        disabled_options = QComboBox()
+        disabled_options.addItems(["Non", "Oui"])
+        disabled_options.setEnabled(False)
+        form_layout.addWidget(disabled_options, 2, 1)
+        disabled_check.toggled.connect(disabled_options.setEnabled)
+
+        layout.addLayout(form_layout)
+
+        # Informations sur la sélection
+        user_count_label = QLabel(f"{len(selected_rows)} utilisateur(s) sélectionné(s)")
+        layout.addWidget(user_count_label)
+
+        # Boutons
+        buttons = QHBoxLayout()
+        apply_btn = QPushButton("Appliquer")
+        cancel_btn = QPushButton("Annuler")
+
+        buttons.addWidget(apply_btn)
+        buttons.addWidget(cancel_btn)
+
+        layout.addLayout(buttons)
+
+        # Connexions
+        cancel_btn.clicked.connect(dialog.reject)
+        apply_btn.clicked.connect(dialog.accept)
+
+        # Afficher la boîte de dialogue
+        if dialog.exec_() == QDialog.Accepted:
+            # Appliquer les modifications
+            modified_count = 0
+
+            for row in selected_rows:
+                user_id = self.users_table.item(row, 0).data(Qt.UserRole)
+                username = self.users_table.item(row, 0).text()
+
+                changes_made = False
+
+                # Modifier max_streams si demandé
+                if max_streams_check.isChecked():
+                    max_streams = max_streams_spin.value()
+                    self.db.add_or_update_user(
+                        user_id, username, max_streams=max_streams
+                    )
+                    self.users_table.item(row, 2).setData(Qt.DisplayRole, max_streams)
+                    changes_made = True
+
+                # Modifier whitelist si demandé
+                if whitelist_check.isChecked():
+                    is_whitelisted = whitelist_options.currentText() == "Oui"
+                    self.db.set_user_whitelist_status(user_id, is_whitelisted)
+                    self.users_table.item(row, 3).setText(
+                        "Oui" if is_whitelisted else "Non"
+                    )
+                    changes_made = True
+
+                # Modifier disabled si demandé
+                if disabled_check.isChecked():
+                    is_disabled = disabled_options.currentText() == "Oui"
+                    self.db.set_user_disabled_status(user_id, is_disabled)
+                    self.users_table.item(row, 4).setText(
+                        "Oui" if is_disabled else "Non"
+                    )
+                    changes_made = True
+
+                if changes_made:
+                    modified_count += 1
+
+            if modified_count > 0:
+                QMessageBox.information(
+                    self, "Succès", f"{modified_count} utilisateur(s) modifié(s)"
+                )
 
     def save_user(self):
         """Enregistrer les modifications de l'utilisateur"""
