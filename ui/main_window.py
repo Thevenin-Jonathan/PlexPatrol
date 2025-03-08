@@ -825,40 +825,6 @@ class PlexPatrolApp(QMainWindow):
         dialog = UserManagementDialog(self, db=self.stream_monitor.db)
         dialog.exec_()
 
-    def create_actions(self):
-        # Remplacer :
-        self.configure_action = QAction("Configuration...", self)
-
-        # Par :
-        self.configure_action = QAction(UIMessages.MENU_CONFIGURATION, self)
-
-        # Remplacer :
-        self.users_action = QAction("Gestion des utilisateurs...", self)
-
-        # Par :
-        self.users_action = QAction(UIMessages.MENU_USERS, self)
-
-        # Remplacer :
-        self.stats_action = QAction("Statistiques détaillées...", self)
-
-        # Par :
-        self.stats_action = QAction(UIMessages.MENU_STATS, self)
-
-        # Remplacer :
-        self.exit_action = QAction("Quitter", self)
-
-        # Par :
-        self.exit_action = QAction(UIMessages.MENU_EXIT, self)
-
-    def create_menu(self):
-        # Remplacer :
-        menu_bar = self.menuBar()
-        file_menu = menu_bar.addMenu("&Fichier")
-
-        # Par :
-        menu_bar = self.menuBar()
-        file_menu = menu_bar.addMenu(UIMessages.MENU_FILE)
-
     def update_refresh_counter(self):
         """Mettre à jour le compteur de rafraîchissement"""
         if (
