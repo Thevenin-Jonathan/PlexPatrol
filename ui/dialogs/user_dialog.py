@@ -197,6 +197,9 @@ class UserManagementDialog(QDialog):
         # Réactiver la détection des changements
         self._editing = True
 
+        # Trier automatiquement par nom d'utilisateur (colonne 0) en ordre croissant
+        self.users_table.sortItems(0, Qt.AscendingOrder)
+
     def on_user_selected(self):
         """Réagir lorsqu'un utilisateur est sélectionné"""
         selected_rows = self.users_table.selectedItems()
