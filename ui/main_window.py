@@ -892,21 +892,10 @@ class PlexPatrolApp(QMainWindow):
         )
         self.tray_button.setToolTip("Minimiser dans la zone de notification")
         self.tray_button.setFixedSize(QSize(30, 30))
-        self.tray_button.clicked.connect(self.minimize_to_tray)
+        self.tray_button.clicked.connect(self.hide)
 
         # Ajouter le bouton après le spacer (donc aligné à droite)
         tray_toolbar.addWidget(self.tray_button)
 
         # Ajouter la barre d'outils en haut
         self.addToolBar(Qt.TopToolBarArea, tray_toolbar)
-
-    def minimize_to_tray(self):
-        """Minimiser l'application dans la zone de notification"""
-        # Afficher un message dans le tray pour informer l'utilisateur (facultatif)
-        self.tray_icon.showMessage(
-            "PlexPatrol",
-            "L'application continue de surveiller en arrière-plan.\nDouble-cliquez sur l'icône pour restaurer.",
-            QSystemTrayIcon.Information,
-            2000,
-        )
-        self.hide()  # Cacher la fenêtre principale
