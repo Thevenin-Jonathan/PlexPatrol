@@ -216,52 +216,72 @@ class PlexPatrolDB:
             )
             return False
 
-    def get_all_users(self):
-        """Récupère tous les utilisateurs avec leurs statistiques"""
+    def get_all_users(self, include_disabled=False):
+        """Récupère tous les utilisateurs avec leurs statistiques de manière optimisée
+
+        Args:
+            include_disabled (bool): Si True, inclut les utilisateurs désactivés
+
+        Returns:
+            list: Liste des utilisateurs avec leurs statistiques
+        """
         try:
             conn = sqlite3.connect(self.db_path)
+
+            # Optimisations SQLite pour améliorer les performances
+            conn.execute("PRAGMA cache_size=10000")
+            conn.execute("PRAGMA temp_store=MEMORY")
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
 
-            # Récupérer tous les utilisateurs avec statistiques (si disponibles)
-            cursor.execute(
-                """
+            # Construction de la requête SQL de base
+            query = """
             SELECT 
                 u.*,
-                COALESCE(COUNT(s.id), 0) AS total_sessions,
-                COALESCE(SUM(CASE WHEN s.was_terminated = 1 THEN 1 ELSE 0 END), 0) AS terminated_sessions
+                COALESCE(s.total, 0) AS total_sessions,
+                COALESCE(s.terminated, 0) AS terminated_sessions,
+                COALESCE(p.platform, 'Inconnue') AS main_platform
             FROM plex_users u
-            LEFT JOIN sessions s ON u.id = s.user_id
-            GROUP BY u.id
+            LEFT JOIN (
+                -- Sous-requête pour les statistiques de sessions
+                SELECT 
+                    user_id, 
+                    COUNT(*) as total,
+                    SUM(CASE WHEN was_terminated = 1 THEN 1 ELSE 0 END) as terminated
+                FROM sessions 
+                GROUP BY user_id
+            ) s ON u.id = s.user_id
+            LEFT JOIN (
+                -- Sous-requête pour déterminer la plateforme principale
+                SELECT user_id, platform
+                FROM (
+                    SELECT 
+                        user_id, 
+                        platform,
+                        COUNT(*) as count,
+                        ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY COUNT(*) DESC) as rank
+                    FROM sessions
+                    GROUP BY user_id, platform
+                ) ranked
+                WHERE rank = 1
+            ) p ON u.id = p.user_id
             """
-            )
 
+            # Ajouter la condition pour filtrer les utilisateurs désactivés si nécessaire
+            if not include_disabled:
+                query += " WHERE u.is_disabled = 0 OR u.is_disabled IS NULL"
+
+            cursor.execute(query)
+
+            # Convertir les résultats en liste de dictionnaires
             results = [dict(row) for row in cursor.fetchall()]
-
-            # Pour chaque utilisateur, déterminer la plateforme principale
-            for user in results:
-                cursor.execute(
-                    """
-                SELECT platform, COUNT(*) AS count
-                FROM sessions
-                WHERE user_id = ?
-                GROUP BY platform
-                ORDER BY count DESC
-                LIMIT 1
-                """,
-                    (user["id"],),
-                )
-
-                platform_data = cursor.fetchone()
-                if platform_data:
-                    user["main_platform"] = dict(platform_data)["platform"]
-                else:
-                    user["main_platform"] = "Inconnue"
-
             conn.close()
+
             return results
         except Exception as e:
             logging.error(f"Erreur lors de la récupération des utilisateurs: {str(e)}")
+            if "conn" in locals() and conn:
+                conn.close()
             return []
 
     def delete_user(self, username):
