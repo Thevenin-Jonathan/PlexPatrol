@@ -800,7 +800,7 @@ class PlexPatrolApp(QMainWindow):
             UserManagementDialog,
         )  # Importation à la demande
 
-        dialog = UserManagementDialog(self)
+        dialog = UserManagementDialog(self, db=self.stream_monitor.db)
         dialog.exec_()
 
     def create_actions(self):

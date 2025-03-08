@@ -23,9 +23,9 @@ from utils.constants import UIMessages, TableColumns, LogMessages
 
 
 class UserManagementDialog(QDialog):
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, db=None):
         super().__init__(parent)
-        self.db = PlexPatrolDB()
+        self.db = db if db else PlexPatrolDB()
         self.setWindowTitle(UIMessages.USER_DIALOG_TITLE)
         self.setMinimumSize(700, 500)
         self.setup_ui()
@@ -47,6 +47,11 @@ class UserManagementDialog(QDialog):
 
         # Activer le tri du tableau
         self.users_table.setSortingEnabled(True)
+
+        # Activer l'édition directe sur double-clic dans le tableau
+        self.users_table.setEditTriggers(
+            QTableWidget.DoubleClicked | QTableWidget.EditKeyPressed
+        )
 
         group_layout.addWidget(self.users_table)
         layout.addWidget(group_box)
@@ -120,6 +125,9 @@ class UserManagementDialog(QDialog):
 
     def load_users(self):
         """Charger les utilisateurs depuis la base de données"""
+        # Désactiver la détection des changements pendant le chargement
+        self._editing = False
+
         # Utiliser la nouvelle méthode qui récupère tous les utilisateurs
         users = self.db.get_all_users()
 
@@ -177,6 +185,18 @@ class UserManagementDialog(QDialog):
         # Réactiver le tri après avoir chargé toutes les données
         self.users_table.setSortingEnabled(True)
 
+        # Déconnecter l'ancien signal si existant pour éviter les connexions multiples
+        try:
+            self.users_table.itemChanged.disconnect(self.on_cell_edited)
+        except:
+            pass
+
+        # Connecter le signal itemChanged une fois les données chargées
+        self.users_table.itemChanged.connect(self.on_cell_edited)
+
+        # Réactiver la détection des changements
+        self._editing = True
+
     def on_user_selected(self):
         """Réagir lorsqu'un utilisateur est sélectionné"""
         selected_rows = self.users_table.selectedItems()
@@ -200,6 +220,66 @@ class UserManagementDialog(QDialog):
 
                 # Activer le bouton de sauvegarde
                 self.save_btn.setEnabled(True)
+
+    def on_cell_edited(self, item):
+        """Traite l'édition directe d'une cellule du tableau"""
+        # Éviter le traitement pendant le chargement initial des données
+        if not hasattr(self, "_editing"):
+            return
+
+        row = item.row()
+        col = item.column()
+        new_value = item.text()
+
+        # Ignorer les colonnes non éditables (selon votre structure)
+        # Colonnes 5, 6, 7 (total_sessions, kill_count, last_activity) ne devraient pas être éditables
+        # Colonne 8 contient le bouton de suppression
+        if col in [5, 6, 7, 8]:
+            return
+
+        user_id = self.users_table.item(row, 0).data(Qt.UserRole)
+        username = self.users_table.item(row, 0).text()
+
+        # Selon la colonne éditée, mettre à jour la valeur correspondante
+        try:
+            if col == 0:  # Nom d'utilisateur
+                # Mettre à jour le nom d'utilisateur
+                self.db.add_or_update_user(user_id, new_value)
+            elif col == 1:  # Téléphone
+                # Mettre à jour le numéro de téléphone
+                self.db.add_or_update_user(user_id, username, phone=new_value)
+            elif col == 2:  # Max Streams
+                # S'assurer que c'est un nombre valide
+                try:
+                    max_streams = int(new_value)
+                    if 1 <= max_streams <= 10:
+                        self.db.add_or_update_user(
+                            user_id, username, max_streams=max_streams
+                        )
+                    else:
+                        raise ValueError("Le nombre de flux doit être entre 1 et 10")
+                except ValueError:
+                    # Restaurer l'ancienne valeur
+                    item.setText(str(self.db.get_user_max_streams(user_id)))
+                    return
+            elif col == 3:  # Whitelist
+                is_whitelisted = 1 if new_value.lower() == "oui" else 0
+                self.db.set_user_whitelist_status(user_id, is_whitelisted)
+                # Assurer une représentation cohérente
+                item.setText("Oui" if is_whitelisted else "Non")
+            elif col == 4:  # Disabled
+                is_disabled = 1 if new_value.lower() == "oui" else 0
+                self.db.set_user_disabled_status(user_id, is_disabled)
+                # Assurer une représentation cohérente
+                item.setText("Oui" if is_disabled else "Non")
+
+            # No need to reload the entire table, just update the specific cell
+        except Exception as e:
+            QMessageBox.warning(
+                self, "Erreur de mise à jour", f"Impossible de mettre à jour: {str(e)}"
+            )
+            # Reload the table to restore original values
+            self.load_users()
 
     def save_user(self):
         """Enregistrer les modifications de l'utilisateur"""
