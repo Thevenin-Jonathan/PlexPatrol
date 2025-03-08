@@ -27,7 +27,7 @@ class UserManagementDialog(QDialog):
         super().__init__(parent)
         self.db = db if db else PlexPatrolDB()
         self.setWindowTitle(UIMessages.USER_DIALOG_TITLE)
-        self.setMinimumSize(700, 500)
+        self.setMinimumSize(1200, 700)
         self.setup_ui()
 
     def setup_ui(self):
