@@ -788,8 +788,30 @@ class PlexPatrolApp(QMainWindow):
         )
 
         if reply == QMessageBox.Yes:
+            # Masquer l'icône de la barre des tâches
             self.tray_icon.hide()
+
+            # Arrêter proprement le thread de surveillance
             self.stream_monitor.stop()
+            self.stream_monitor.wait(
+                1000
+            )  # Attendre jusqu'à 1 seconde que le thread se termine
+
+            # Si le thread ne s'est pas terminé proprement, le forcer à s'arrêter
+            if self.stream_monitor.isRunning():
+                self.stream_monitor.terminate()
+                self.stream_monitor.wait()
+
+            # Fermer proprement la connexion à la base de données
+            if hasattr(self.stream_monitor, "db"):
+                # S'assurer que toutes les connexions à la base de données sont fermées
+                try:
+                    # Si PlexPatrolDB a une méthode de fermeture, l'utiliser
+                    if hasattr(self.stream_monitor.db, "close"):
+                        self.stream_monitor.db.close()
+                except:
+                    pass
+
             event.accept()
         else:
             event.ignore()

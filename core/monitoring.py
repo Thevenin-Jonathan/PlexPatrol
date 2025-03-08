@@ -79,6 +79,13 @@ class StreamMonitor(QThread):
 
         self.new_log.emit("Arrêt de la surveillance des flux Plex", "INFO")
 
+    def stop(self):
+        """Arrêter le thread de surveillance proprement"""
+        self.is_running = False
+
+        # Réveiller le thread s'il est en attente dans sleep()
+        self.wait(100)  # Attendre un peu pour laisser le thread se terminer
+
     def check_sessions(self):
         """Vérifier les sessions actives et agir si nécessaire"""
         try:
@@ -583,9 +590,3 @@ class StreamMonitor(QThread):
             self.new_log.emit("Surveillance reprise", "INFO")
 
         return self.is_paused
-
-    def stop(self):
-        """Arrêter la surveillance"""
-        self.is_running = False
-        self.new_log.emit(LogMessages.MONITOR_STOP, "INFO")
-        self.wait()

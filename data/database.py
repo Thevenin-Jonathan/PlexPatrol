@@ -715,3 +715,12 @@ class PlexPatrolDB:
                 f"Erreur lors de la mise à jour du statut de désactivation: {str(e)}"
             )
             return False
+
+    def close(self):
+        """Ferme proprement toutes les connexions à la base de données"""
+        try:
+            # Fermer toute connexion active
+            conn = sqlite3.connect(self.db_path)
+            conn.close()
+        except:
+            pass
