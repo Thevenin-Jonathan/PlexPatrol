@@ -85,12 +85,6 @@ class ConfigManager:
                 "category": "plex",
                 "description": "Intervalle de vérification en secondes",
             },
-            ConfigKeys.MAX_STREAMS: {
-                "value": str(Defaults.MAX_STREAMS),
-                "type": "int",
-                "category": "rules",
-                "description": "Nombre maximum de flux simultanés par défaut",
-            },
             ConfigKeys.TERMINATION_MESSAGE: {
                 "value": Defaults.TERMINATION_MESSAGE,
                 "type": "str",
