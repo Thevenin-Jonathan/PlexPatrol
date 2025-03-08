@@ -1,18 +1,18 @@
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QColor, QPalette
-import os
-import sys
 
 
 def get_app_path():
-    """Obtenir le chemin de l'application, fonctionne même avec PyInstaller"""
+    """Obtenir le chemin de base de l'application, même si empaqueté avec PyInstaller"""
+    import sys
+    import os
+
     if getattr(sys, "frozen", False):
-        # Si l'application est compilée avec PyInstaller
-        return os.path.dirname(sys.executable)
+        # PyInstaller crée un dossier temporaire et met les fichiers dedans
+        return sys._MEIPASS
     else:
-        # Si l'application est exécutée en développement
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        return os.path.dirname(current_dir)
+        # Mode développement: le script s'exécute directement
+        return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def apply_dark_theme(app):

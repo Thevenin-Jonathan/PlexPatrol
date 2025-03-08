@@ -23,8 +23,15 @@ PyInstaller.__main__.run(
         "--add-data=data;data",  # Ajout du dossier data si nécessaire
         "--add-data=ui;ui",  # Ajout du dossier ui
         "--add-data=core;core",  # Ajout du dossier core
+        "--hidden-import=pkgutil",
         "--hidden-import=utils.constants",  # Important: ajout explicite de ce module
         "--hidden-import=config.config_manager",
+        "--hidden-import=PyQt5.QtWidgets",
+        "--hidden-import=PyQt5.QtGui",
+        "--hidden-import=PyQt5.QtCore",
+        "--hidden-import=PyQt5.QtWidgets.QSystemTrayIcon",
+        "--hidden-import=PyQt5.QtWidgets.QMenu",
+        "--additional-hooks-dir=hooks",
         "--noconfirm",  # Ne pas demander de confirmation
         "--clean",  # Nettoyer avant la construction
     ]
