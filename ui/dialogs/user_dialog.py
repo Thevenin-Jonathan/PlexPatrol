@@ -290,9 +290,11 @@ class UserManagementDialog(QDialog):
         if selected_rows:
             row = selected_rows[0].row()
             user_id = self.users_table.item(row, 0).data(Qt.UserRole)
+            username = (
+                self.username_edit.text()
+            )  # Récupérer le nouveau nom d'utilisateur
 
             if user_id:
-                username = self.username_edit.text()
                 max_streams = self.max_streams_spin.value()
                 is_whitelisted = self.whitelist_check.isChecked()
                 is_disabled = self.disabled_check.isChecked()
@@ -324,16 +326,51 @@ class UserManagementDialog(QDialog):
                     )
 
                     if whitelist_success and disabled_success:
+                        # Mettre à jour uniquement les cellules concernées au lieu de recharger tout le tableau
+                        self.update_table_row(
+                            row,
+                            user_id,
+                            username,
+                            phone,
+                            max_streams,
+                            is_whitelisted,
+                            is_disabled,
+                        )
                         QMessageBox.information(
                             self, UIMessages.TITLE_SUCCESS, UIMessages.USER_UPDATED
                         )
-                        self.load_users()  # Recharger les données
                     else:
                         QMessageBox.warning(
                             self, "Erreur", UIMessages.ERROR_UPDATE_USER
                         )
                 else:
                     QMessageBox.warning(self, "Erreur", UIMessages.ERROR_UPDATE_USER)
+
+    def update_table_row(
+        self, row, user_id, username, phone, max_streams, is_whitelisted, is_disabled
+    ):
+        """Met à jour uniquement la ligne concernée dans le tableau sans recharger tout le tableau"""
+        # Désactiver temporairement le signal itemChanged pour éviter les effets en cascade
+        try:
+            self.users_table.itemChanged.disconnect(self.on_cell_edited)
+        except:
+            pass
+
+        # Mettre à jour les cellules individuellement
+        self.users_table.item(row, 0).setText(username)
+        self.users_table.item(row, 1).setText(phone)
+
+        max_streams_item = self.users_table.item(row, 2)
+        max_streams_item.setData(Qt.DisplayRole, max_streams)
+
+        self.users_table.item(row, 3).setText("Oui" if is_whitelisted else "Non")
+        self.users_table.item(row, 4).setText("Oui" if is_disabled else "Non")
+
+        # Réactiver le signal itemChanged
+        self.users_table.itemChanged.connect(self.on_cell_edited)
+
+        # S'assurer que la ligne reste sélectionnée
+        self.users_table.selectRow(row)
 
     def delete_user(self):
         """Supprimer un utilisateur de la base de données et de la configuration"""
