@@ -28,7 +28,20 @@ class UserManagementDialog(QDialog):
         super().__init__(parent)
         self.db = db if db else PlexPatrolDB()
         self.setWindowTitle(UIMessages.USER_DIALOG_TITLE)
-        self.setMinimumSize(1200, 700)
+
+        # Obtenir la taille de l'écran
+        from PyQt5.QtWidgets import QDesktopWidget
+
+        screen_size = QDesktopWidget().availableGeometry().size()
+
+        # Calculer les dimensions (par exemple, 80% de la largeur et 70% de la hauteur)
+        width = int(screen_size.width() * 0.6)
+        height = int(screen_size.height() * 0.7)
+
+        # Définir la taille minimale et la taille de départ
+        self.setMinimumSize(900, 600)
+        self.resize(width, height)  # Taille optimale au démarrage
+
         self.setup_ui()
 
     def setup_ui(self):
