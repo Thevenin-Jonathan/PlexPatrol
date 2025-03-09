@@ -110,9 +110,6 @@ class StreamMonitor(QThread):
                 # Mettre à jour l'interface
                 self.sessions_updated.emit(user_streams)
 
-                for username, streams in user_streams.items():
-                    self.update_user_stats(username, streams)
-
                 # Vérifier les conditions d'arrêt
                 self.check_stream_conditions(user_streams)
 

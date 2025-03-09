@@ -379,9 +379,9 @@ class PlexPatrolDB:
             if not cursor.fetchone():
                 cursor.execute(
                     """
-                INSERT INTO plex_users (id, username, last_seen)
-                VALUES (?, ?, ?)
-                """,
+                    INSERT INTO plex_users (id, username, last_seen)
+                    VALUES (?, ?, ?)
+                    """,
                     (user_id, f"Utilisateur {user_id[:8]}", now),
                 )
 
@@ -389,31 +389,16 @@ class PlexPatrolDB:
             cursor.execute(
                 "SELECT session_id FROM sessions WHERE session_id = ?", (session_id,)
             )
-            if cursor.fetchone():
-                # Mettre à jour la session existante
+            session_exists = cursor.fetchone() is not None
+
+            if not session_exists:
+                # C'est une nouvelle session, insérer dans la base de données
                 cursor.execute(
                     """
-                UPDATE sessions 
-                SET platform = ?, device = ?, ip_address = ?, media_title = ?, library_section = ?
-                WHERE session_id = ?
-                """,
-                    (
-                        platform,
-                        device,
-                        ip_address,
-                        media_title,
-                        library_section,
-                        session_id,
-                    ),
-                )
-            else:
-                # Insérer une nouvelle session
-                cursor.execute(
-                    """
-                INSERT INTO sessions 
-                (user_id, session_id, start_time, platform, device, ip_address, media_title, library_section)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """,
+                    INSERT INTO sessions 
+                    (user_id, session_id, start_time, platform, device, ip_address, media_title, library_section)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
                     (
                         user_id,
                         session_id,
@@ -426,11 +411,38 @@ class PlexPatrolDB:
                     ),
                 )
 
+                # Mettre à jour le compteur de sessions uniquement pour les nouvelles sessions
+                cursor.execute(
+                    """
+                    UPDATE plex_users 
+                    SET total_sessions = COALESCE(total_sessions, 0) + 1
+                    WHERE id = ?
+                    """,
+                    (user_id,),
+                )
+            else:
+                # Mettre à jour la session existante
+                cursor.execute(
+                    """
+                    UPDATE sessions 
+                    SET platform = ?, device = ?, ip_address = ?, media_title = ?, library_section = ?
+                    WHERE session_id = ?
+                    """,
+                    (
+                        platform,
+                        device,
+                        ip_address,
+                        media_title,
+                        library_section,
+                        session_id,
+                    ),
+                )
+
             # Mettre à jour la dernière activité de l'utilisateur
             cursor.execute(
                 """
-            UPDATE plex_users SET last_seen = ? WHERE id = ?
-            """,
+                UPDATE plex_users SET last_seen = ? WHERE id = ?
+                """,
                 (now, user_id),
             )
 
