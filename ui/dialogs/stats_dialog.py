@@ -567,6 +567,7 @@ class StatisticsDialog(QDialog):
         import tempfile
         import json
         from data.geoip import GeoIPLocator
+        from PyQt5.QtWidgets import QSplitter
 
         tab = QWidget()
         layout = QVBoxLayout(tab)
@@ -642,10 +643,19 @@ class StatisticsDialog(QDialog):
                     margin: 0; 
                     padding: 0; 
                     height: 100%; 
+                    width: 100%;
+                    overflow: hidden;
                 }
                 #map { 
-                    height: 400px; 
-                    width: 100%; 
+                    position: absolute;
+                    top: 0;
+                    bottom: 0;
+                    left: 0;
+                    right: 0;
+                    height: 100%; 
+                    width: 100%;
+                    margin: 0;
+                    padding: 0;
                 }
                 .popup-content {
                     font-family: Arial, sans-serif;
@@ -666,6 +676,9 @@ class StatisticsDialog(QDialog):
                 .leaflet-popup-tip {
                     background: #333;
                 }
+                .leaflet-container {
+                    background: #1e1e1e; /* Fond de carte adapté au thème sombre */
+                }
             </style>
             <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
         </head>
@@ -677,10 +690,10 @@ class StatisticsDialog(QDialog):
                 
                 // Créer la carte avec des options spécifiques
                 var map = L.map('map', {
-                    worldCopyJump: true, // Empêcher la répétition horizontale
-                    minZoom: 2, // Zoom minimum pour éviter une vue trop éloignée
+                    worldCopyJump: true,
+                    minZoom: 2,
                     maxZoom: 18
-                }).setView([46.8, 2.3], 5); // Vue par défaut centrée sur la France
+                }).setView([46.8, 2.3], 5);
                 
                 // Ajouter la couche OpenStreetMap
                 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -704,7 +717,6 @@ class StatisticsDialog(QDialog):
                 var markers = [];
                 
                 if (locationsData.locations && locationsData.locations.length > 0) {
-                    // Créer un groupe de marqueurs pour les regrouper
                     var markerGroup = L.featureGroup();
                     
                     for (var i = 0; i < locationsData.locations.length; i++) {
@@ -718,34 +730,28 @@ class StatisticsDialog(QDialog):
                         markers.push(marker);
                     }
                     
-                    // Ajouter le groupe à la carte
                     markerGroup.addTo(map);
                     
-                    // Adapter la vue aux marqueurs
                     if (locationsData.locations.length === 1) {
-                        // Pour un seul point, centrer dessus avec un zoom fixe (plus dézoomé)
                         var loc = locationsData.locations[0];
-                        map.setView([loc.lat, loc.lng], 5); // Réduit de 6 à 5
+                        map.setView([loc.lat, loc.lng], 5);
                     } else {
-                        // Pour plusieurs points
                         map.fitBounds(markerGroup.getBounds(), {
-                            padding: [50, 50], // Augmentation du padding pour plus d'espace autour
-                            maxZoom: 5 // Réduit de 7 à 5 pour moins zoomer
+                            padding: [50, 50],
+                            maxZoom: 5
                         });
                         
-                        // S'assurer que le zoom est raisonnable (deux niveaux de moins)
                         setTimeout(function() {
                             var currentZoom = map.getZoom();
-                            if (currentZoom > 5) { 
-                                map.setZoom(5); // Réduit le zoom maximum à 5
+                            if (currentZoom > 5) {
+                                map.setZoom(5);
                             }
                             if (currentZoom < 4) {
-                                map.setZoom(4); // Zoom minimum pour garder une vue détaillée
+                                map.setZoom(4);
                             }
                         }, 100);
                     }
                     
-                    // Amélioration des popups
                     markerGroup.eachLayer(function(layer) {
                         layer.on('mouseover', function(e) {
                             this.openPopup();
@@ -760,15 +766,17 @@ class StatisticsDialog(QDialog):
                     });
                 }
                 
-                // Corriger les problèmes de dimensionnement et appliquer un dézoom supplémentaire
-                setTimeout(function() {
+                // Redimensionner la carte lors du chargement et du redimensionnement de la fenêtre
+                function resizeMap() {
                     map.invalidateSize();
-                    
-                    // Dézoom d'un niveau supplémentaire si nous sommes sur des points en France
-                    if (map.getZoom() > 5) {
-                        map.setZoom(5);  // Forcer un zoom de niveau 5 maximum
-                    }
-                }, 200);
+                }
+                
+                // S'assurer que la carte est correctement dimensionnée
+                setTimeout(resizeMap, 100);
+                setTimeout(resizeMap, 500);
+                
+                // Redimensionner également lors des changements de taille de fenêtre
+                window.addEventListener('resize', resizeMap);
             </script>
         </body>
         </html>
@@ -782,10 +790,20 @@ class StatisticsDialog(QDialog):
         with open(temp_file.name, "w", encoding="utf-8") as f:
             f.write(map_html)
 
-        # Afficher la carte
+            # Créer une disposition spécifique pour la carte qui garantit une hauteur fixe
         web_view = QWebEngineView()
+        web_view.setMinimumHeight(400)  # Hauteur minimale fixe pour la carte
         web_view.load(QUrl.fromLocalFile(temp_file.name))
-        layout.addWidget(web_view)
+
+        # Ajouter le tableau et la carte dans un splitter vertical
+        splitter = QSplitter(Qt.Vertical)
+        splitter.addWidget(table)
+        splitter.addWidget(web_view)
+
+        # Configurer les tailles relatives (50% tableau, 50% carte)
+        splitter.setSizes([400, 400])
+
+        layout.addWidget(splitter)
 
         # Fermer le localisateur
         locator.close()
