@@ -378,8 +378,22 @@ class UserManagementDialog(QDialog):
             QMessageBox.warning(self, "Attention", "Aucun utilisateur sélectionné")
             return
 
-        # Récupérer les lignes uniques (car selectedItems renvoie un item pour chaque cellule)
-        selected_rows = set(item.row() for item in selected_items)
+        # Récupérer les lignes et identifiants uniques des utilisateurs sélectionnés
+        selected_users = {}  # {user_id: (row, username)}
+        for item in selected_items:
+            row = item.row()
+            user_id = self.users_table.item(row, 0).data(Qt.UserRole)
+            username = self.users_table.item(row, 0).text()
+            if user_id not in selected_users:
+                selected_users[user_id] = (row, username)
+
+        if not selected_users:
+            QMessageBox.warning(
+                self,
+                "Attention",
+                "Impossible de récupérer les identifiants des utilisateurs",
+            )
+            return
 
         # Créer une boîte de dialogue pour l'édition en masse
         dialog = QDialog(self)
@@ -426,7 +440,9 @@ class UserManagementDialog(QDialog):
         layout.addLayout(form_layout)
 
         # Informations sur la sélection
-        user_count_label = QLabel(f"{len(selected_rows)} utilisateur(s) sélectionné(s)")
+        user_count_label = QLabel(
+            f"{len(selected_users)} utilisateur(s) sélectionné(s)"
+        )
         layout.addWidget(user_count_label)
 
         # Boutons
@@ -448,45 +464,91 @@ class UserManagementDialog(QDialog):
             # Appliquer les modifications
             modified_count = 0
 
-            for row in selected_rows:
-                user_id = self.users_table.item(row, 0).data(Qt.UserRole)
-                username = self.users_table.item(row, 0).text()
+            # Désactiver le signal de changement pour éviter les mises à jour multiples
+            try:
+                self.users_table.itemChanged.disconnect(self.on_cell_edited)
+            except:
+                pass
 
+            # Mémoriser la position de défilement
+            scrollbar_pos = self.users_table.verticalScrollBar().value()
+
+            for user_id, (row, username) in selected_users.items():
                 changes_made = False
 
                 # Modifier max_streams si demandé
                 if max_streams_check.isChecked():
                     max_streams = max_streams_spin.value()
-                    self.db.add_or_update_user(
+                    if self.db.add_or_update_user(
                         user_id, username, max_streams=max_streams
-                    )
-                    self.users_table.item(row, 2).setData(Qt.DisplayRole, max_streams)
-                    changes_made = True
+                    ):
+                        # Mettre à jour la cellule correspondante si elle est visible
+                        try:
+                            # Trouver l'élément dans le tableau (peut avoir changé après tri)
+                            for i in range(self.users_table.rowCount()):
+                                item_id = self.users_table.item(i, 0).data(Qt.UserRole)
+                                if item_id == user_id:
+                                    self.users_table.item(i, 2).setData(
+                                        Qt.DisplayRole, max_streams
+                                    )
+                                    break
+                        except:
+                            # Si la mise à jour de l'interface échoue, ce n'est pas grave
+                            # car nous rechargerons le tableau à la fin
+                            pass
+                        changes_made = True
 
                 # Modifier whitelist si demandé
                 if whitelist_check.isChecked():
                     is_whitelisted = whitelist_options.currentText() == "Oui"
-                    self.db.set_user_whitelist_status(user_id, is_whitelisted)
-                    self.users_table.item(row, 3).setText(
-                        "Oui" if is_whitelisted else "Non"
-                    )
-                    changes_made = True
+                    if self.db.set_user_whitelist_status(user_id, is_whitelisted):
+                        try:
+                            # Trouver l'élément dans le tableau (peut avoir changé après tri)
+                            for i in range(self.users_table.rowCount()):
+                                item_id = self.users_table.item(i, 0).data(Qt.UserRole)
+                                if item_id == user_id:
+                                    self.users_table.item(i, 3).setText(
+                                        "Oui" if is_whitelisted else "Non"
+                                    )
+                                    break
+                        except:
+                            pass
+                        changes_made = True
 
                 # Modifier disabled si demandé
                 if disabled_check.isChecked():
                     is_disabled = disabled_options.currentText() == "Oui"
-                    self.db.set_user_disabled_status(user_id, is_disabled)
-                    self.users_table.item(row, 4).setText(
-                        "Oui" if is_disabled else "Non"
-                    )
-                    changes_made = True
+                    if self.db.set_user_disabled_status(user_id, is_disabled):
+                        try:
+                            # Trouver l'élément dans le tableau (peut avoir changé après tri)
+                            for i in range(self.users_table.rowCount()):
+                                item_id = self.users_table.item(i, 0).data(Qt.UserRole)
+                                if item_id == user_id:
+                                    self.users_table.item(i, 4).setText(
+                                        "Oui" if is_disabled else "Non"
+                                    )
+                                    break
+                        except:
+                            pass
+                        changes_made = True
 
                 if changes_made:
                     modified_count += 1
 
+            # Recharger complètement la liste pour s'assurer que tout est cohérent
+            include_disabled = self.show_disabled_check.isChecked()
+            self.load_users(include_disabled=include_disabled)
+
+            # Restaurer la position de défilement
+            self.users_table.verticalScrollBar().setValue(scrollbar_pos)
+
             if modified_count > 0:
                 QMessageBox.information(
                     self, "Succès", f"{modified_count} utilisateur(s) modifié(s)"
+                )
+            else:
+                QMessageBox.warning(
+                    self, "Information", "Aucun utilisateur n'a été modifié"
                 )
 
     def save_user(self):
