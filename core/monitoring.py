@@ -524,34 +524,71 @@ class StreamMonitor(QThread):
         params = {"sessionId": session_id, "reason": custom_message}
         headers = {"X-Plex-Token": self.config.plex_token}
 
-        try:
-            response = requests.get(url, params=params, headers=headers, timeout=10)
-            if response.status_code == 200:
-                self.db.mark_session_terminated(session_id)
+        max_retries = 3
+        retry_count = 0
 
-                # Récupérer les informations sur le flux depuis la base de données
-                session_info = self.db.get_session_info(session_id)
+        while retry_count < max_retries:
+            try:
+                response = requests.get(url, params=params, headers=headers, timeout=10)
+                if response.status_code == 200:
+                    self.db.mark_session_terminated(session_id)
 
-                platform = "Inconnu"
-                if session_info:
-                    platform = session_info.get("platform", "Inconnu")
+                    # Récupérer les informations sur le flux depuis la base de données
+                    session_info = self.db.get_session_info(session_id)
 
-                # Enregistrer la terminaison pour les statistiques
-                self.db.record_stream_termination(user_id, username, platform)
+                    platform = "Inconnu"
+                    if session_info:
+                        platform = session_info.get("platform", "Inconnu")
 
-                # Ajouter ces lignes pour les logs d'interface
-                self.logger.info(
-                    f"Stream {session_id} arrêté pour {username} (compte désactivé)"
+                    # Enregistrer la terminaison pour les statistiques
+                    self.db.record_stream_termination(user_id, username, platform)
+
+                    # Ajouter ces lignes pour les logs d'interface
+                    self.logger.info(
+                        f"Stream {session_id} arrêté pour {username} avec message: '{custom_message}'"
+                    )
+                    self.new_log.emit(
+                        f"Stream arrêté pour {username} avec message personnalisé",
+                        "SUCCESS",
+                    )
+
+                    return True
+
+                self.logger.warning(
+                    f"Échec de l'arrêt du stream {session_id}: HTTP {response.status_code}"
                 )
-                self.new_log.emit(
-                    f"Stream arrêté pour {username} (compte désactivé)", "SUCCESS"
-                )
+                retry_count += 1
+                time.sleep(1)  # Attente avant nouvelle tentative
 
-                return True
-            return False
-        except requests.exceptions.RequestException as e:
-            self.logger.error(f"Erreur lors de l'arrêt du stream: {str(e)}")
-            return False
+            except requests.exceptions.Timeout:
+                self.logger.warning(
+                    f"Délai d'attente dépassé lors de l'arrêt du stream {session_id}"
+                )
+                retry_count += 1
+                time.sleep(2)  # Attente plus longue en cas de timeout
+
+            except requests.exceptions.ConnectionError:
+                self.logger.error(
+                    f"Erreur de connexion lors de l'arrêt du stream {session_id}"
+                )
+                retry_count += 1
+                time.sleep(2)
+
+            except Exception as e:
+                self.logger.error(
+                    f"Erreur inattendue lors de l'arrêt du stream {session_id}: {str(e)}"
+                )
+                return False
+
+        # Si on arrive ici, c'est que toutes les tentatives ont échoué
+        self.logger.error(
+            f"Impossible d'arrêter le stream {session_id} après {max_retries} tentatives"
+        )
+        self.new_log.emit(
+            f"Échec de l'arrêt du flux pour {username} après plusieurs tentatives",
+            "ERROR",
+        )
+        return False
 
     def manual_stop_stream(self, user_id, username, session_id, state="playing"):
         """Arrêter manuellement un stream (depuis l'interface)"""
