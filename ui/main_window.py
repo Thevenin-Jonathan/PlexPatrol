@@ -27,6 +27,7 @@ from PyQt5.QtGui import QIcon, QTextCursor
 
 # Importer les modules personnalisés
 from core import StreamMonitor
+from data.database import PlexPatrolDB
 from ui.dialogs import ConfigDialog, StatisticsDialog, MessageDialog
 from config.config_manager import config
 from utils import get_app_path
@@ -642,18 +643,30 @@ class PlexPatrolApp(QMainWindow):
         self.add_log("Statistiques rafraîchies", "INFO")
 
     def load_stats(self):
-        """Charger les statistiques depuis le fichier"""
-        stats_path = os.path.join(get_app_path(), "stats.json")
-        if os.path.exists(stats_path):
-            try:
-                with open(stats_path, "r", encoding="utf-8") as f:
-                    return json.load(f)
-            except Exception as e:
-                self.add_log(
-                    f"Erreur lors du chargement des statistiques: {str(e)}", "ERROR"
-                )
+        """Charger les statistiques depuis la base de données"""
+        try:
+            # Utiliser l'instance de DB déjà disponible via le moniteur si possible
+            if hasattr(self, "stream_monitor") and hasattr(self.stream_monitor, "db"):
+                db_instance = self.stream_monitor.db
+            else:
+                # Fallback si l'instance n'est pas disponible
+                db_instance = PlexPatrolDB()
 
-        return {}
+            stats_list = db_instance.get_user_stats()
+
+            # Convertir la liste en dictionnaire avec username comme clé
+            stats_dict = {}
+            for user in stats_list:
+                stats_dict[user["username"]] = user
+
+            # IMPORTANT : retourner le dictionnaire pour que refresh_stats() fonctionne
+            return stats_dict
+
+        except Exception as e:
+            self.add_log(
+                f"Erreur lors du chargement des statistiques: {str(e)}", "ERROR"
+            )
+            return {}  # Retourner un dictionnaire vide en cas d'erreur
 
     def update_stats_table(self):
         """Mettre à jour le tableau des statistiques"""
