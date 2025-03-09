@@ -479,8 +479,10 @@ class UserManagementDialog(QDialog):
             # Désactiver le signal de changement pour éviter les mises à jour multiples
             try:
                 self.users_table.itemChanged.disconnect(self.on_cell_edited)
-            except:
-                pass
+            except Exception as e:
+                logging.debug(
+                    f"Impossible de déconnecter le signal itemChanged: {str(e)}"
+                )
 
             # Mémoriser la position de défilement
             scrollbar_pos = self.users_table.verticalScrollBar().value()
@@ -504,9 +506,10 @@ class UserManagementDialog(QDialog):
                                         Qt.DisplayRole, max_streams
                                     )
                                     break
-                        except:
-                            # Si la mise à jour de l'interface échoue, ce n'est pas grave
-                            # car nous rechargerons le tableau à la fin
+                        except Exception as e:
+                            logging.debug(
+                                f"Erreur lors de la mise à jour de la cellule : {str(e)}"
+                            )
                             pass
                         changes_made = True
 
