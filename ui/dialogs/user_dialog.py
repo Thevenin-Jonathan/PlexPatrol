@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 from PyQt5.QtWidgets import (
     QDialog,
@@ -159,85 +160,94 @@ class UserManagementDialog(QDialog):
         # Déconnecter l'ancien signal si existant pour éviter les connexions multiples
         try:
             self.users_table.itemChanged.disconnect(self.on_cell_edited)
-        except:
-            pass
+        except Exception as e:
+            # Log l'erreur mais continue l'exécution
+            logging.debug(f"Impossible de déconnecter le signal: {str(e)}")
 
         # Désactiver la détection des changements pendant le chargement
         self._editing = False
 
-        # Utiliser la nouvelle méthode qui récupère tous les utilisateurs
-        users = self.db.get_all_users(include_disabled=include_disabled)
+        try:
+            # Utiliser la nouvelle méthode qui récupère tous les utilisateurs
+            users = self.db.get_all_users(include_disabled=include_disabled)
 
-        # Désactiver temporairement le tri
-        self.users_table.setSortingEnabled(False)
+            # Désactiver temporairement le tri
+            self.users_table.setSortingEnabled(False)
 
-        self.users_table.setRowCount(0)
+            self.users_table.setRowCount(0)
 
-        for row, user in enumerate(users):
-            # Accéder aux clés du dictionnaire plutôt qu'aux indices
-            username = user.get("username", "Inconnu")
-            user_id = user.get("id", "")
-            phone = user.get("phone", "")
-            max_streams = user.get("max_streams", 1)
-            is_whitelisted = "Oui" if user.get("is_whitelisted", 0) else "Non"
-            is_disabled = "Oui" if user.get("is_disabled", 0) else "Non"
-            total_sessions = user.get("total_sessions", 0)
-            kill_count = user.get("terminated_sessions", 0)
-            last_activity = user.get("last_seen", "Jamais")
+            for row, user in enumerate(users):
+                # Accéder aux clés du dictionnaire plutôt qu'aux indices
+                username = user.get("username", "Inconnu")
+                user_id = user.get("id", "")
+                phone = user.get("phone", "")
+                max_streams = user.get("max_streams", 1)
+                is_whitelisted = "Oui" if user.get("is_whitelisted", 0) else "Non"
+                is_disabled = "Oui" if user.get("is_disabled", 0) else "Non"
+                total_sessions = user.get("total_sessions", 0)
+                kill_count = user.get("terminated_sessions", 0)
+                last_activity = user.get("last_seen", "Jamais")
 
-            self.users_table.insertRow(row)
+                self.users_table.insertRow(row)
 
-            # Créer l'élément et stocker l'ID utilisateur
-            username_item = QTableWidgetItem(username)
-            username_item.setData(Qt.UserRole, user_id)
-            self.users_table.setItem(row, 0, username_item)
+                # Créer l'élément et stocker l'ID utilisateur
+                username_item = QTableWidgetItem(username)
+                username_item.setData(Qt.UserRole, user_id)
+                self.users_table.setItem(row, 0, username_item)
 
-            self.users_table.setItem(row, 1, QTableWidgetItem(phone))
+                self.users_table.setItem(row, 1, QTableWidgetItem(phone))
 
-            max_streams_item = QTableWidgetItem()
-            max_streams_item.setData(Qt.DisplayRole, max_streams)
-            self.users_table.setItem(row, 2, max_streams_item)
+                max_streams_item = QTableWidgetItem()
+                max_streams_item.setData(Qt.DisplayRole, max_streams)
+                self.users_table.setItem(row, 2, max_streams_item)
 
-            self.users_table.setItem(row, 3, QTableWidgetItem(is_whitelisted))
+                self.users_table.setItem(row, 3, QTableWidgetItem(is_whitelisted))
 
-            self.users_table.setItem(row, 4, QTableWidgetItem(is_disabled))
+                self.users_table.setItem(row, 4, QTableWidgetItem(is_disabled))
 
-            total_sessions_item = QTableWidgetItem()
-            total_sessions_item.setData(Qt.DisplayRole, total_sessions)
-            self.users_table.setItem(row, 5, total_sessions_item)
+                total_sessions_item = QTableWidgetItem()
+                total_sessions_item.setData(Qt.DisplayRole, total_sessions)
+                self.users_table.setItem(row, 5, total_sessions_item)
 
-            kill_count_item = QTableWidgetItem()
-            kill_count_item.setData(Qt.DisplayRole, kill_count)
-            self.users_table.setItem(row, 6, kill_count_item)
+                kill_count_item = QTableWidgetItem()
+                kill_count_item.setData(Qt.DisplayRole, kill_count)
+                self.users_table.setItem(row, 6, kill_count_item)
 
-            self.users_table.setItem(row, 7, QTableWidgetItem(last_activity))
+                self.users_table.setItem(row, 7, QTableWidgetItem(last_activity))
 
-            # Ajouter le bouton de suppression
-            delete_button = QPushButton("Supprimer")
-            delete_button.setProperty("username", username)
-            delete_button.clicked.connect(self.delete_user)
+                # Ajouter le bouton de suppression
+                delete_button = QPushButton("Supprimer")
+                delete_button.setProperty("username", username)
+                delete_button.clicked.connect(self.delete_user)
 
-            self.users_table.setCellWidget(row, 8, delete_button)
+                self.users_table.setCellWidget(row, 8, delete_button)
 
-            # Vérifier si l'utilisateur est désactivé
-            if user.get("is_disabled", 0):
-                for col in range(
-                    self.users_table.columnCount() - 1
-                ):  # Sauf le bouton supprimer
-                    item = self.users_table.item(row, col)
-                    item.setForeground(QBrush(QColor(128, 128, 128)))  # Texte grisé
+                # Vérifier si l'utilisateur est désactivé
+                if user.get("is_disabled", 0):
+                    for col in range(
+                        self.users_table.columnCount() - 1
+                    ):  # Sauf le bouton supprimer
+                        item = self.users_table.item(row, col)
+                        item.setForeground(QBrush(QColor(128, 128, 128)))  # Texte grisé
 
-        # Réactiver le tri après avoir chargé toutes les données
-        self.users_table.setSortingEnabled(True)
+            # Réactiver le tri après avoir chargé toutes les données
+            self.users_table.setSortingEnabled(True)
 
-        # Réactiver la détection des changements
-        self._editing = True
+            # Réactiver la détection des changements
+            self._editing = True
 
-        # Trier automatiquement par nom d'utilisateur (colonne 0) en ordre croissant
-        self.users_table.sortItems(0, Qt.AscendingOrder)
+            # Trier automatiquement par nom d'utilisateur (colonne 0) en ordre croissant
+            self.users_table.sortItems(0, Qt.AscendingOrder)
 
-        # Connecter le signal itemChanged une fois les données chargées
-        self.users_table.itemChanged.connect(self.on_cell_edited)
+            # Connecter le signal itemChanged une fois les données chargées
+            self.users_table.itemChanged.connect(self.on_cell_edited)
+
+        except Exception as e:
+            QMessageBox.critical(
+                self, "Erreur", f"Impossible de charger les utilisateurs: {str(e)}"
+            )
+            logging.error(f"Erreur lors du chargement des utilisateurs: {str(e)}")
+            self._editing = True  # Réactiver pour éviter de bloquer l'interface
 
     def on_user_selected(self):
         """Réagir lorsqu'un utilisateur est sélectionné"""
