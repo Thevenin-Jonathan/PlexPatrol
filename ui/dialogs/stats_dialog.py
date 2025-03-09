@@ -603,9 +603,7 @@ class StatisticsDialog(QDialog):
 
             # Utiliser setData avec Qt.DisplayRole pour stocker le nombre pour le tri
             count_item = QTableWidgetItem()
-            count_item.setData(
-                Qt.DisplayRole, ip["count"]
-            )  # Stocker comme nombre pour le tri
+            count_item.setData(Qt.DisplayRole, ip["count"])
             table.setItem(row, 3, count_item)
 
             table.setItem(row, 4, QTableWidgetItem(ip["last_seen"]))
@@ -630,40 +628,153 @@ class StatisticsDialog(QDialog):
 
         layout.addWidget(table)
 
-        # Créer le HTML pour la carte
+        # Créer le HTML pour la carte avec Leaflet
         map_html = """
         <!DOCTYPE html>
         <html>
         <head>
             <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>PlexPatrol - Carte des connexions</title>
-            <style>
-                #map { height: 400px; width: 100%; }
-            </style>
             <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+            <style>
+                body, html { 
+                    margin: 0; 
+                    padding: 0; 
+                    height: 100%; 
+                }
+                #map { 
+                    height: 400px; 
+                    width: 100%; 
+                }
+                .popup-content {
+                    font-family: Arial, sans-serif;
+                    padding: 8px;
+                    font-size: 14px;
+                    text-align: center;
+                    background-color: #333;
+                    color: white;
+                    border-radius: 5px;
+                    min-width: 180px;
+                }
+                .leaflet-popup-content-wrapper {
+                    background: #333;
+                    color: white;
+                    border-radius: 5px;
+                    padding: 0;
+                }
+                .leaflet-popup-tip {
+                    background: #333;
+                }
+            </style>
             <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
         </head>
         <body>
             <div id="map"></div>
             <script>
-                var mapData = MAP_DATA_PLACEHOLDER;
-                var map = L.map('map').setView([0, 0], 2);
+                // Charger les données
+                var locationsData = MAP_DATA_PLACEHOLDER;
+                
+                // Créer la carte avec des options spécifiques
+                var map = L.map('map', {
+                    worldCopyJump: true, // Empêcher la répétition horizontale
+                    minZoom: 2, // Zoom minimum pour éviter une vue trop éloignée
+                    maxZoom: 18
+                }).setView([46.8, 2.3], 5); // Vue par défaut centrée sur la France
+                
+                // Ajouter la couche OpenStreetMap
                 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                    attribution: '© OpenStreetMap contributors'
+                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+                    noWrap: true
                 }).addTo(map);
                 
-                // Ajouter les marqueurs
-                for (var i = 0; i < mapData.locations.length; i++) {
-                    var loc = mapData.locations[i];
-                    L.marker([loc.lat, loc.lng]).addTo(map)
-                        .bindPopup(loc.name);
+                // Fonction pour créer le contenu des popups
+                function createPopupContent(name) {
+                    var parts = name.split('(');
+                    var ip = parts[0].trim();
+                    var sessions = parts[1].replace(')', '').trim();
+                    
+                    return '<div class="popup-content">' +
+                        '<strong>IP:</strong> ' + ip + '<br>' +
+                        '<strong>Sessions:</strong> ' + sessions +
+                        '</div>';
                 }
+                
+                // Ajouter les marqueurs
+                var markers = [];
+                
+                if (locationsData.locations && locationsData.locations.length > 0) {
+                    // Créer un groupe de marqueurs pour les regrouper
+                    var markerGroup = L.featureGroup();
+                    
+                    for (var i = 0; i < locationsData.locations.length; i++) {
+                        var loc = locationsData.locations[i];
+                        var marker = L.marker([loc.lat, loc.lng])
+                            .bindPopup(createPopupContent(loc.name), {
+                                closeButton: false
+                            });
+                        
+                        markerGroup.addLayer(marker);
+                        markers.push(marker);
+                    }
+                    
+                    // Ajouter le groupe à la carte
+                    markerGroup.addTo(map);
+                    
+                    // Adapter la vue aux marqueurs
+                    if (locationsData.locations.length === 1) {
+                        // Pour un seul point, centrer dessus avec un zoom fixe (plus dézoomé)
+                        var loc = locationsData.locations[0];
+                        map.setView([loc.lat, loc.lng], 5); // Réduit de 6 à 5
+                    } else {
+                        // Pour plusieurs points
+                        map.fitBounds(markerGroup.getBounds(), {
+                            padding: [50, 50], // Augmentation du padding pour plus d'espace autour
+                            maxZoom: 5 // Réduit de 7 à 5 pour moins zoomer
+                        });
+                        
+                        // S'assurer que le zoom est raisonnable (deux niveaux de moins)
+                        setTimeout(function() {
+                            var currentZoom = map.getZoom();
+                            if (currentZoom > 5) { 
+                                map.setZoom(5); // Réduit le zoom maximum à 5
+                            }
+                            if (currentZoom < 4) {
+                                map.setZoom(4); // Zoom minimum pour garder une vue détaillée
+                            }
+                        }, 100);
+                    }
+                    
+                    // Amélioration des popups
+                    markerGroup.eachLayer(function(layer) {
+                        layer.on('mouseover', function(e) {
+                            this.openPopup();
+                        });
+                        layer.on('click', function(e) {
+                            if (this.isPopupOpen()) {
+                                this.closePopup();
+                            } else {
+                                this.openPopup();
+                            }
+                        });
+                    });
+                }
+                
+                // Corriger les problèmes de dimensionnement et appliquer un dézoom supplémentaire
+                setTimeout(function() {
+                    map.invalidateSize();
+                    
+                    // Dézoom d'un niveau supplémentaire si nous sommes sur des points en France
+                    if (map.getZoom() > 5) {
+                        map.setZoom(5);  // Forcer un zoom de niveau 5 maximum
+                    }
+                }, 200);
             </script>
         </body>
         </html>
         """
 
-        # Remplacer le placeholder par les données réelles
+        # Remplacer les placeholders
         map_html = map_html.replace("MAP_DATA_PLACEHOLDER", json.dumps(map_data))
 
         # Écrire dans un fichier temporaire
