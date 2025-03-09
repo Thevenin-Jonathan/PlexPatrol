@@ -491,11 +491,20 @@ class StreamMonitor(QThread):
             username: Nom d'utilisateur
             all_streams: Toutes les sessions de l'utilisateur pour les statistiques
         """
+        # Variables pour construire un message Telegram pour tous les streams arrêtés
+        successful_stops = 0
+        telegram_message_parts = [f"🛑 <b>Streams arrêtés !</b>"]
+        telegram_message_parts.append(f"👤 <b>Utilisateur</b>: {username}")
+        telegram_message_parts.append(
+            f"🔢 <b>Nombre de streams</b>: {len(sessions_to_stop)}"
+        )
+
         for stream in sessions_to_stop:
             session_id = stream[0]
             platform = stream[5]
             device = stream[7]
             state = stream[9]
+            media_title = stream[4]  # Titre du média en cours de lecture
 
             self.logger.info(
                 f"Tentative d'arrêt du flux {session_id} ({platform}/{device}, état: {state}) pour {username}"
@@ -504,7 +513,9 @@ class StreamMonitor(QThread):
             success = self.stop_stream(user_id, username, session_id, state)
 
             if success:
+                successful_stops += 1
                 self.logger.info(f"Stream {session_id} arrêté pour {username}")
+
                 # Utiliser un message différent selon l'état du flux
                 if state == "playing":
                     log_message = LogMessages.STREAM_STOPPED_PLAYING.format(
@@ -521,6 +532,14 @@ class StreamMonitor(QThread):
 
                 self.new_log.emit(log_message, "SUCCESS")
 
+                # Ajouter les détails de ce stream au message Telegram
+                stream_details = f"\n\n📺 <b>Stream #{successful_stops}</b>"
+                stream_details += f"\n<b>Contenu</b>: {media_title}"
+                stream_details += f"\n<b>Plateforme</b>: {platform}"
+                stream_details += f"\n<b>Appareil</b>: {device}"
+                stream_details += f"\n<b>État</b>: {state}"
+                telegram_message_parts.append(stream_details)
+
                 # Mettre à jour les statistiques directement en base de données
                 self.db.record_stream_termination(user_id, username, platform)
             else:
@@ -532,6 +551,25 @@ class StreamMonitor(QThread):
                         username=username, platform=platform
                     ),
                     "ERROR",
+                )
+
+        # Si des streams ont été arrêtés avec succès, envoyer une notification Telegram
+        if successful_stops > 0:
+            reason_msg = f"\n\n📝 <b>Raison</b>: Dépassement de limite ({len(all_streams)} streams actifs, maximum autorisé: {self.db.get_user_max_streams(user_id)})"
+            telegram_message_parts.append(reason_msg)
+
+            # Joindre toutes les parties du message
+            full_telegram_message = "\n".join(telegram_message_parts)
+
+            # Envoyer la notification Telegram
+            try:
+                self.send_telegram(full_telegram_message)
+                self.logger.info(
+                    f"Notification Telegram envoyée pour l'arrêt de {successful_stops} streams de {username}"
+                )
+            except Exception as e:
+                self.logger.error(
+                    f"Erreur lors de l'envoi de la notification Telegram: {str(e)}"
                 )
 
     def stop_stream(self, user_id, username, session_id, state="playing"):
