@@ -108,18 +108,46 @@ class StreamMonitor(QThread):
                 self.last_poll_time = time.time()
             else:
                 self.consecutive_errors += 1
+                error_message = "Impossible de récupérer les sessions actives"
                 if self.consecutive_errors >= 3:
                     self.connection_status.emit(False)
                     self.new_log.emit(
-                        "Impossible de se connecter au serveur Plex", "ERROR"
+                        f"{error_message} (tentative {self.consecutive_errors})",
+                        "ERROR",
                     )
 
+                    # Tentative de reconnexion
+                    if self.consecutive_errors % 5 == 0:  # Toutes les 5 erreurs
+                        self.new_log.emit(
+                            "Tentative de reconnexion au serveur Plex...", "INFO"
+                        )
+                        if self.test_connection():
+                            self.new_log.emit(
+                                "Reconnexion réussie au serveur Plex", "SUCCESS"
+                            )
+                            self.consecutive_errors = 0
+                            self.connection_status.emit(True)
+                else:
+                    self.new_log.emit(error_message, "WARNING")
+
         except Exception as e:
+            self.logger.error(f"Erreur lors de la vérification des sessions: {str(e)}")
             self.new_log.emit(LogMessages.SESSION_ERROR.format(error=str(e)), "ERROR")
             self.consecutive_errors += 1
 
             if self.consecutive_errors >= 3:
                 self.connection_status.emit(False)
+
+    def test_connection(self):
+        """Test si la connexion au serveur Plex est active"""
+        url = f"{self.config.plex_server_url}/status/sessions"
+        headers = {"X-Plex-Token": self.config.plex_token}
+
+        try:
+            response = requests.get(url, headers=headers, timeout=5)
+            return response.status_code == 200
+        except:
+            return False
 
     def get_active_sessions(self):
         """Récupérer les sessions actives depuis le serveur Plex"""
