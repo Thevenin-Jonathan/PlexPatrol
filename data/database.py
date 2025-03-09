@@ -1,7 +1,7 @@
 import sqlite3
 import os
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 import time
 from utils import get_app_path
 from utils.constants import LogMessages, Paths
@@ -299,7 +299,7 @@ class PlexPatrolDB:
             conn.close()
             return True
         except Exception as e:
-            print(f"Erreur lors de la suppression de l'utilisateur: {str(e)}")
+            logging.error(f"Erreur lors de la suppression de l'utilisateur: {str(e)}")
             return False
 
     def get_user_details(self, user_id):
@@ -513,7 +513,7 @@ class PlexPatrolDB:
             # Calculer le timestamp pour l'expiration (conversion de minutes en secondes)
             current_time = datetime.now()
             expiration_time = (
-                current_time - datetime.timedelta(minutes=expiration_minutes)
+                current_time - timedelta(minutes=expiration_minutes)
             ).isoformat()
 
             # Supprimer les sessions expirées non terminées
@@ -604,6 +604,128 @@ class PlexPatrolDB:
                 f"Erreur lors de la récupération de l'activité de l'appareil: {str(e)}"
             )
             return 0
+
+    def get_content_stats(self):
+        """Obtenir les statistiques sur les types de contenu consommés"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+
+            query = """
+            SELECT 
+                library_section, 
+                COUNT(*) as count,
+                SUM(CASE WHEN was_terminated = 1 THEN 1 ELSE 0 END) as terminated_count
+            FROM sessions
+            GROUP BY library_section
+            ORDER BY count DESC
+            """
+
+            cursor.execute(query)
+            results = [dict(row) for row in cursor.fetchall()]
+
+            conn.close()
+            return results
+
+        except Exception as e:
+            logging.error(
+                f"Erreur lors de la récupération des statistiques de contenu: {str(e)}"
+            )
+            return []
+
+    def get_sessions_by_time(self, days=7):
+        """Obtenir l'historique des sessions sur une période donnée"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+
+            query = """
+            SELECT 
+                start_time,
+                end_time,
+                was_terminated,
+                user_id,
+                platform,
+                device,
+                library_section,
+                media_title
+            FROM sessions
+            WHERE start_time >= datetime('now', '-' || ? || ' days')
+            ORDER BY start_time
+            """
+
+            cursor.execute(query, (days,))
+            results = [dict(row) for row in cursor.fetchall()]
+
+            conn.close()
+            return results
+
+        except Exception as e:
+            logging.error(
+                f"Erreur lors de la récupération des sessions par temps: {str(e)}"
+            )
+            return []
+
+    def get_device_stats(self):
+        """Obtenir les statistiques d'utilisation par appareil"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+
+            query = """
+            SELECT 
+                device, 
+                COUNT(*) as count,
+                SUM(CASE WHEN was_terminated = 1 THEN 1 ELSE 0 END) as terminated_count
+            FROM sessions
+            GROUP BY device
+            ORDER BY count DESC
+            """
+
+            cursor.execute(query)
+            results = [dict(row) for row in cursor.fetchall()]
+
+            conn.close()
+            return results
+
+        except Exception as e:
+            logging.error(
+                f"Erreur lors de la récupération des statistiques d'appareils: {str(e)}"
+            )
+            return []
+
+    def get_ip_stats(self):
+        """Obtenir les statistiques d'utilisation par adresse IP"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+
+            query = """
+            SELECT 
+                ip_address,
+                COUNT(*) as count,
+                MAX(start_time) as last_seen
+            FROM sessions
+            WHERE ip_address IS NOT NULL AND ip_address != ''
+            GROUP BY ip_address
+            ORDER BY count DESC
+            """
+
+            cursor.execute(query)
+            results = [dict(row) for row in cursor.fetchall()]
+
+            conn.close()
+            return results
+
+        except Exception as e:
+            logging.error(
+                f"Erreur lors de la récupération des statistiques d'IPs: {str(e)}"
+            )
+            return []
 
     # =====================================================
     # MÉTHODES DE GESTION DES STATISTIQUES
