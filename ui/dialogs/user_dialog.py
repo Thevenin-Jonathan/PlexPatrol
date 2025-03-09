@@ -355,6 +355,8 @@ class UserManagementDialog(QDialog):
         try:
             self.users_table.itemChanged.disconnect(self.on_cell_edited)
         except:
+            # Journaliser l'erreur si le signal n'était pas connecté
+            logging.debug(f"Impossible de déconnecter le signal itemChanged: {str(e)}")
             pass
 
         # Mémoriser la position de défilement
