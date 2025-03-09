@@ -498,12 +498,15 @@ class PlexPatrolDB:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
 
-            # Calculer le timestamp pour l'expiration
-            expiration_time = int(time.time()) - (expiration_minutes * 60)
+            # Calculer le timestamp pour l'expiration (conversion de minutes en secondes)
+            current_time = datetime.now()
+            expiration_time = (
+                current_time - datetime.timedelta(minutes=expiration_minutes)
+            ).isoformat()
 
             # Supprimer les sessions expirées non terminées
             cursor.execute(
-                "DELETE FROM sessions WHERE last_seen < ? AND was_terminated = 0",
+                "DELETE FROM sessions WHERE start_time < ? AND was_terminated = 0",
                 (expiration_time,),
             )
 
