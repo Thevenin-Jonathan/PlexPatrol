@@ -159,6 +159,9 @@ class PlexPatrolApp(QMainWindow):
         self.tabs.addTab(logs_tab, "Journal des événements")
         self.tabs.addTab(stats_tab, "Statistiques")
 
+        # Connecter le signal de changement d'onglet
+        self.tabs.currentChanged.connect(self.on_tab_changed)
+
         main_layout.addWidget(self.tabs)
 
         # Barre d'état
@@ -387,6 +390,13 @@ class PlexPatrolApp(QMainWindow):
         layout.addLayout(buttons_layout)
 
         return tab
+
+    def on_tab_changed(self, index):
+        """Appelé lorsque l'utilisateur change d'onglet"""
+        # Si l'utilisateur a sélectionné l'onglet Statistiques (index 2)
+        if index == 2:  # L'onglet Statistiques est le troisième (index 2)
+            # Rafraîchir automatiquement les statistiques
+            self.refresh_stats()
 
     def setup_tray_icon(self):
         """Configurer l'icône de la barre des tâches"""
