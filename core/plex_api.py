@@ -38,23 +38,6 @@ class PlexAPI:
             )
             return None
 
-    def stop_stream(self, session_id, reason="Dépassement du nombre de flux autorisés"):
-        """Arrêter un stream spécifique"""
-        url = f"{self.server_url}/status/sessions/terminate"
-        params = {
-            "sessionId": session_id,
-            "reason": reason,
-        }
-
-        try:
-            response = requests.get(
-                url, params=params, headers=self.headers, timeout=10
-            )
-            return response.status_code == 200
-        except requests.exceptions.RequestException as e:
-            logging.error(f"Erreur lors de l'arrêt du stream: {str(e)}")
-            return False
-
     def get_users(self):
         """Récupère la liste des utilisateurs Plex avec leurs IDs"""
         url = f"{self.server_url}/accounts"
