@@ -18,12 +18,24 @@ class PlexAPI:
         try:
             response = requests.get(url, headers=self.headers, timeout=10)
             if response.status_code == 200:
-                return response.text
+                return response.content
             else:
-                logging.error(f"Erreur de requête: {response.status_code}")
+                logging.error(
+                    f"Erreur lors de la récupération des sessions: HTTP {response.status_code}"
+                )
                 return None
-        except requests.exceptions.RequestException as e:
-            logging.error(f"Erreur de connexion: {str(e)}")
+        except requests.exceptions.Timeout:
+            logging.error(
+                "Délai d'attente dépassé lors de la connexion au serveur Plex"
+            )
+            return None
+        except requests.exceptions.ConnectionError:
+            logging.error("Erreur de connexion au serveur Plex")
+            return None
+        except Exception as e:
+            logging.error(
+                f"Erreur inattendue lors de la récupération des sessions: {str(e)}"
+            )
             return None
 
     def stop_stream(self, session_id, reason="Dépassement du nombre de flux autorisés"):
