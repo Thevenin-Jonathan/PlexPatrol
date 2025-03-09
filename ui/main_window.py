@@ -727,7 +727,7 @@ class PlexPatrolApp(QMainWindow):
         self.stats_table.setSortingEnabled(True)
 
         # Trier par défaut selon le nombre d'arrêts (colonne 1) en ordre décroissant
-        self.stats_table.sortItems(0, Qt.AscendingOrder)
+        self.stats_table.sortItems(1, Qt.DescendingOrder)
 
     def export_stats(self):
         """Exporter les statistiques au format CSV"""
