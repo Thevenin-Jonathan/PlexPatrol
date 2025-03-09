@@ -1,5 +1,6 @@
 import sys
 from PyQt5.QtWidgets import QApplication
+from PyQt5.QtCore import Qt
 from ui.main_window import PlexPatrolApp
 from utils.logger import setup_logging
 
@@ -9,6 +10,7 @@ setup_logging()
 
 def main():
     """Point d'entrée principal"""
+    QApplication.setAttribute(Qt.AA_ShareOpenGLContexts)
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
 

@@ -31,6 +31,11 @@ PyInstaller.__main__.run(
         "--hidden-import=PyQt5.QtCore",
         "--hidden-import=PyQt5.QtWidgets.QSystemTrayIcon",
         "--hidden-import=PyQt5.QtWidgets.QMenu",
+        "--hidden-import=PyQt5.QtWebEngineWidgets",
+        "--hidden-import=PyQt5.QtWebEngine",
+        "--hidden-import=PyQt5.QtChart",
+        "--hidden-import=geoip2",
+        "--hidden-import=geoip2.database",
         "--additional-hooks-dir=hooks",
         "--noconfirm",  # Ne pas demander de confirmation
         "--clean",  # Nettoyer avant la construction
