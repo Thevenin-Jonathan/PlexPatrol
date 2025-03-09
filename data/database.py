@@ -557,7 +557,7 @@ class PlexPatrolDB:
             return None
 
     def get_device_last_activity(self, device_id):
-        """Récupère la timestamp de la dernière activité d'un appareil"""
+        """Récupère la dernière activité d'un appareil"""
         try:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
@@ -565,7 +565,7 @@ class PlexPatrolDB:
             # Récupérer la session la plus récente pour cet appareil
             cursor.execute(
                 """
-                SELECT MAX(timestamp) 
+                SELECT MAX(start_time) 
                 FROM sessions 
                 WHERE player_id = ?
                 """,
