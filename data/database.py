@@ -465,12 +465,22 @@ class PlexPatrolDB:
             conn.close()
 
             # Mettre à jour les statistiques
-            self.record_stream_termination(user_id, username, platform)
+            if user_id and username and platform:
+                self.record_stream_termination(user_id, username, platform)
+            else:
+                logging.warning(
+                    f"Informations incomplètes pour la session {session_id}, impossible de mettre à jour les statistiques"
+                )
 
             return True
+        except sqlite3.Error as e:
+            logging.error(
+                f"Erreur SQL lors du marquage de la session {session_id}: {str(e)}"
+            )
+            return False
         except Exception as e:
             logging.error(
-                f"Erreur lors du marquage de la session comme terminée: {str(e)}"
+                f"Erreur lors du marquage de la session {session_id} comme terminée: {str(e)}"
             )
             return False
 
