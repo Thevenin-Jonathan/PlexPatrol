@@ -110,6 +110,9 @@ class StreamMonitor(QThread):
                 # Mettre à jour l'interface
                 self.sessions_updated.emit(user_streams)
 
+                for username, streams in user_streams.items():
+                    self.update_user_stats(username, streams)
+
                 # Vérifier les conditions d'arrêt
                 self.check_stream_conditions(user_streams)
 
@@ -684,63 +687,159 @@ class StreamMonitor(QThread):
         """Arrêter manuellement un stream (depuis l'interface)"""
         return self.stop_stream(user_id, username, session_id, state)
 
-    def update_user_stats(self, username, stream_count):
+    def update_user_stats(self, user_id, streams):
         """
-        Mettre à jour les statistiques d'utilisation
+        Met à jour les statistiques d'utilisation pour un utilisateur
 
         Args:
-            username: Nom d'utilisateur
-            stream_count: Nombre de flux actifs
+            user_id: ID de l'utilisateur dans la base de données
+            streams: Liste des streams actifs pour cet utilisateur
         """
         try:
-            # Charger les statistiques existantes
-            stats_path = os.path.join(get_app_path(), Paths.DATA, Paths.STATS_FILE)
-            stats = {}
+            if not streams:  # Rien à faire si pas de streams
+                return True
 
-            if os.path.exists(stats_path):
-                try:
-                    with open(stats_path, "r") as f:
-                        stats = json.load(f)
-                except json.JSONDecodeError:
-                    self.logger.error(
-                        "Fichier de statistiques corrompu, création d'un nouveau fichier"
+            # Vérifier si user_id est valide
+            if not user_id:
+                self.logger.warning(
+                    "Tentative de mise à jour des statistiques avec un ID utilisateur invalide"
+                )
+                return False
+
+            # Utiliser un contexte `with` pour gérer la connexion et s'assurer qu'elle est fermée
+            with sqlite3.connect(self.db.db_path) as conn:
+                cursor = conn.cursor()
+
+                # Vérifier que l'utilisateur existe
+                cursor.execute("SELECT 1 FROM plex_users WHERE id = ?", (user_id,))
+                if not cursor.fetchone():
+                    self.logger.warning(
+                        f"Utilisateur ID {user_id} introuvable dans la base de données"
                     )
-                    stats = {}
+                    # Créer l'utilisateur avec des informations minimales
+                    try:
+                        username = (
+                            streams[0][8]
+                            if streams and len(streams[0]) > 8
+                            else "Inconnu"
+                        )
+                        cursor.execute(
+                            "INSERT INTO plex_users (id, username) VALUES (?, ?)",
+                            (user_id, username),
+                        )
+                        self.logger.info(
+                            f"Utilisateur {username} (ID: {user_id}) créé automatiquement"
+                        )
+                    except Exception as user_create_error:
+                        self.logger.error(
+                            f"Impossible de créer l'utilisateur: {str(user_create_error)}"
+                        )
+                        return False
 
-            # Mettre à jour les statistiques
-            today = datetime.now().strftime("%Y-%m-%d")
+                # Mettre à jour last_seen pour l'utilisateur
+                cursor.execute(
+                    """
+                    UPDATE plex_users 
+                    SET last_seen = datetime('now')
+                    WHERE id = ?
+                    """,
+                    (user_id,),
+                )
 
-            if "user_activity" not in stats:
-                stats["user_activity"] = {}
+                # Mettre à jour le nombre total de sessions
+                cursor.execute(
+                    """
+                    UPDATE plex_users 
+                    SET total_sessions = COALESCE(total_sessions, 0) + ?
+                    WHERE id = ?
+                    """,
+                    (len(streams), user_id),
+                )
 
-            if username not in stats["user_activity"]:
-                stats["user_activity"][username] = {}
+                # Enregistrer les statistiques par plateforme
+                for stream in streams:
+                    try:
+                        # Vérifier que le stream contient suffisamment d'éléments
+                        if len(stream) <= 5:
+                            self.logger.warning(
+                                f"Stream avec structure invalide ignoré: {stream}"
+                            )
+                            continue
 
-            if today not in stats["user_activity"][username]:
-                stats["user_activity"][username][today] = {
-                    "max_concurrent_streams": 0,
-                    "total_streams": 0,
-                    "watch_minutes": 0,
-                }
+                        platform = stream[
+                            5
+                        ]  # Plateforme (index 5 dans le tuple de stream)
 
-            # Mettre à jour le nombre maximum de streams concurrents
-            if (
-                stream_count
-                > stats["user_activity"][username][today]["max_concurrent_streams"]
-            ):
-                stats["user_activity"][username][today][
-                    "max_concurrent_streams"
-                ] = stream_count
+                        # S'assurer que la plateforme n'est pas None ou vide
+                        if not platform:
+                            platform = "Inconnu"
 
-            # Incrémenter le nombre total de streams
-            stats["user_activity"][username][today]["total_streams"] += 1
+                        # Vérifier si cette plateforme existe déjà pour cet utilisateur
+                        cursor.execute(
+                            """
+                            SELECT count
+                            FROM platform_stats
+                            WHERE user_id = ? AND platform = ?
+                            """,
+                            (user_id, platform),
+                        )
+                        result = cursor.fetchone()
 
-            # Sauvegarder les statistiques
-            os.makedirs(os.path.dirname(stats_path), exist_ok=True)
-            with open(stats_path, "w") as f:
-                json.dump(stats, f, indent=2)
+                        if result:
+                            # Mettre à jour le compteur existant
+                            cursor.execute(
+                                """
+                                UPDATE platform_stats
+                                SET count = count + 1
+                                WHERE user_id = ? AND platform = ?
+                                """,
+                                (user_id, platform),
+                            )
+                        else:
+                            # Vérifier si la table platform_stats existe
+                            cursor.execute(
+                                "SELECT name FROM sqlite_master WHERE type='table' AND name='platform_stats'"
+                            )
+                            if not cursor.fetchone():
+                                # Créer la table si elle n'existe pas
+                                cursor.execute(
+                                    """
+                                    CREATE TABLE platform_stats (
+                                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                        user_id TEXT NOT NULL,
+                                        platform TEXT NOT NULL,
+                                        count INTEGER DEFAULT 0,
+                                        UNIQUE(user_id, platform)
+                                    )
+                                """
+                                )
+                                self.logger.info(
+                                    "Table platform_stats créée automatiquement"
+                                )
 
-            return True
+                            # Créer un nouveau compteur pour cette plateforme
+                            cursor.execute(
+                                """
+                                INSERT INTO platform_stats (user_id, platform, count)
+                                VALUES (?, ?, 1)
+                                """,
+                                (user_id, platform),
+                            )
+                    except Exception as stream_error:
+                        # Capturer les erreurs par stream pour ne pas bloquer les autres
+                        self.logger.error(
+                            f"Erreur lors du traitement des stats du stream: {str(stream_error)}"
+                        )
+                        continue
+
+                # Le commit est automatiquement fait par le with statement
+                return True
+
+        except sqlite3.Error as sql_error:
+            self.logger.error(
+                f"Erreur SQL lors de la mise à jour des statistiques: {str(sql_error)}"
+            )
+            return False
         except Exception as e:
             self.logger.error(
                 f"Erreur lors de la mise à jour des statistiques: {str(e)}"
