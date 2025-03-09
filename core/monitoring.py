@@ -680,10 +680,6 @@ class StreamMonitor(QThread):
         )
         return False
 
-    def manual_stop_stream(self, user_id, username, session_id, state="playing"):
-        """Arrêter manuellement un stream (depuis l'interface)"""
-        return self.stop_stream(user_id, username, session_id, state)
-
     def update_user_stats(self, user_id, streams):
         """
         Met à jour les statistiques d'utilisation pour un utilisateur
