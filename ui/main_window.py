@@ -78,11 +78,7 @@ class PlexPatrolApp(QMainWindow):
                 self.close()
                 return
 
-        # Charger les statistiques
-        self.stats = self.load_stats()
-
-        # Charger les utilisateurs Plex
-        self.plex_users = {}
+        self.db = PlexPatrolDB()
 
         # Créer l'interface utilisateur
         self.setup_ui()
@@ -91,7 +87,13 @@ class PlexPatrolApp(QMainWindow):
         self.load_plex_users()
 
         # Créer et démarrer le thread de surveillance
-        self.stream_monitor = StreamMonitor()
+        self.stream_monitor = StreamMonitor(db_instance=self.db)
+
+        # Charger les statistiques
+        self.stats = self.load_stats()
+
+        # Charger les utilisateurs Plex
+        self.plex_users = {}
 
         # Connecter les signaux
         self.stream_monitor.new_log.connect(self.add_log)
@@ -633,7 +635,7 @@ class PlexPatrolApp(QMainWindow):
 
     def show_stats_dialog(self):
         """Afficher la boîte de dialogue des statistiques"""
-        dialog = StatisticsDialog(self.stats, self)
+        dialog = StatisticsDialog(self.stats, self.stream_monitor.db, self)
         dialog.exec_()
 
     def refresh_stats(self):
@@ -645,14 +647,7 @@ class PlexPatrolApp(QMainWindow):
     def load_stats(self):
         """Charger les statistiques depuis la base de données"""
         try:
-            # Utiliser l'instance de DB déjà disponible via le moniteur si possible
-            if hasattr(self, "stream_monitor") and hasattr(self.stream_monitor, "db"):
-                db_instance = self.stream_monitor.db
-            else:
-                # Fallback si l'instance n'est pas disponible
-                db_instance = PlexPatrolDB()
-
-            stats_list = db_instance.get_user_stats()
+            stats_list = self.db.get_user_stats()
 
             # Convertir la liste en dictionnaire avec username comme clé
             stats_dict = {}

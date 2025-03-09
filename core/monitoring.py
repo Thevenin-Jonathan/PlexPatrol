@@ -20,7 +20,7 @@ class StreamMonitor(QThread):
     sessions_updated = pyqtSignal(dict)  # user_streams dictionary
     connection_status = pyqtSignal(bool)  # is_connected
 
-    def __init__(self):
+    def __init__(self, db_instance=None):
         super().__init__()
         from config.config_manager import config
 
@@ -30,7 +30,7 @@ class StreamMonitor(QThread):
         self.known_sessions = {}
         self.last_poll_time = 0
         self.consecutive_errors = 0
-        self.db = PlexPatrolDB()
+        self.db = db_instance if db_instance is not None else PlexPatrolDB()
 
         # Ajouter l'import des notifications
         from utils.notification import send_telegram_notification

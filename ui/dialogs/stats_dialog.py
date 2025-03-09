@@ -20,15 +20,17 @@ from PyQt5.QtChart import (
 from PyQt5.QtGui import QPainter
 from PyQt5.QtCore import Qt
 
+from data.database import PlexPatrolDB
 from utils.constants import UIMessages
 
 
 class StatisticsDialog(QDialog):
     """Dialogue d'affichage des statistiques détaillées"""
 
-    def __init__(self, stats, parent=None):
+    def __init__(self, stats, db_instance=None, parent=None):
         super().__init__(parent)
         self.stats = stats
+        self.db = db_instance if db_instance is not None else PlexPatrolDB()
         self.setWindowTitle("Statistiques détaillées")
         self.setMinimumSize(800, 600)
         self.setup_ui()
