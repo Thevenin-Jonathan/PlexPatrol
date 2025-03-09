@@ -118,15 +118,13 @@ class StreamMonitor(QThread):
 
                     # Tentative de reconnexion
                     if self.consecutive_errors % 5 == 0:  # Toutes les 5 erreurs
-                        self.new_log.emit(
-                            "Tentative de reconnexion au serveur Plex...", "INFO"
-                        )
-                        if self.test_connection():
-                            self.new_log.emit(
-                                "Reconnexion réussie au serveur Plex", "SUCCESS"
-                            )
+                        if (
+                            self.reconnect_to_plex()
+                        ):  # Utilisation de la nouvelle méthode
                             self.consecutive_errors = 0
-                            self.connection_status.emit(True)
+                        else:
+                            # Si la reconnexion échoue, augmenter le délai avant la prochaine tentative
+                            time.sleep(min(60, self.consecutive_errors))
                 else:
                     self.new_log.emit(error_message, "WARNING")
 
@@ -179,6 +177,34 @@ class StreamMonitor(QThread):
             self.logger.error(
                 f"Erreur lors du test de connexion au serveur Plex: {str(e)}"
             )
+            return False
+
+    def reconnect_to_plex(self):
+        """Tente de rétablir la connexion au serveur Plex de manière robuste"""
+        self.new_log.emit("Tentative de reconnexion au serveur Plex...", "INFO")
+
+        # Réinitialisation des ressources de connexion
+        try:
+            # Tenter la reconnexion
+            url = f"{self.config.plex_server_url}/status/sessions"
+            headers = {"X-Plex-Token": self.config.plex_token}
+
+            response = requests.get(url, headers=headers, timeout=10)
+
+            if response.status_code == 200:
+                self.consecutive_errors = 0
+                self.connection_status.emit(True)
+                self.new_log.emit("Reconnexion réussie au serveur Plex", "SUCCESS")
+                return True
+            else:
+                self.new_log.emit(
+                    f"Échec de la reconnexion: code HTTP {response.status_code}",
+                    "ERROR",
+                )
+                return False
+        except requests.exceptions.RequestException as e:
+            self.logger.error(f"Erreur lors de la tentative de reconnexion: {str(e)}")
+            self.new_log.emit(f"Échec de la reconnexion: {str(e)}", "ERROR")
             return False
 
     def get_active_sessions(self):
@@ -627,41 +653,67 @@ class StreamMonitor(QThread):
         return self.stop_stream(user_id, username, session_id, state)
 
     def update_user_stats(self, username, stream_count):
-        """Mettre à jour les statistiques d'utilisation"""
-        stats_path = os.path.join(get_app_path(), "stats.json")
-        stats = {}
+        """
+        Mettre à jour les statistiques d'utilisation
 
-        # Charger les statistiques existantes
-        if os.path.exists(stats_path):
-            try:
-                with open(stats_path, "r", encoding="utf-8") as f:
-                    stats = json.load(f)
-            except Exception as e:
-                self.logger.error(
-                    f"Erreur lors du chargement des statistiques: {str(e)}"
-                )
-
-        # Créer ou mettre à jour les statistiques pour cet utilisateur
-        if username not in stats:
-            stats[username] = {
-                "total_sessions": 0,
-                "kill_count": 0,
-                "platforms": {},
-                "last_seen": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            }
-
-        # Mettre à jour le nombre total de sessions
-        stats[username]["total_sessions"] += stream_count
-        stats[username]["last_seen"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-        # Enregistrer les statistiques
+        Args:
+            username: Nom d'utilisateur
+            stream_count: Nombre de flux actifs
+        """
         try:
-            with open(stats_path, "w", encoding="utf-8") as f:
+            # Charger les statistiques existantes
+            stats_path = os.path.join(get_app_path(), Paths.DATA, Paths.STATS_FILE)
+            stats = {}
+
+            if os.path.exists(stats_path):
+                try:
+                    with open(stats_path, "r") as f:
+                        stats = json.load(f)
+                except json.JSONDecodeError:
+                    self.logger.error(
+                        "Fichier de statistiques corrompu, création d'un nouveau fichier"
+                    )
+                    stats = {}
+
+            # Mettre à jour les statistiques
+            today = datetime.now().strftime("%Y-%m-%d")
+
+            if "user_activity" not in stats:
+                stats["user_activity"] = {}
+
+            if username not in stats["user_activity"]:
+                stats["user_activity"][username] = {}
+
+            if today not in stats["user_activity"][username]:
+                stats["user_activity"][username][today] = {
+                    "max_concurrent_streams": 0,
+                    "total_streams": 0,
+                    "watch_minutes": 0,
+                }
+
+            # Mettre à jour le nombre maximum de streams concurrents
+            if (
+                stream_count
+                > stats["user_activity"][username][today]["max_concurrent_streams"]
+            ):
+                stats["user_activity"][username][today][
+                    "max_concurrent_streams"
+                ] = stream_count
+
+            # Incrémenter le nombre total de streams
+            stats["user_activity"][username][today]["total_streams"] += 1
+
+            # Sauvegarder les statistiques
+            os.makedirs(os.path.dirname(stats_path), exist_ok=True)
+            with open(stats_path, "w") as f:
                 json.dump(stats, f, indent=2)
+
+            return True
         except Exception as e:
             self.logger.error(
-                f"Erreur lors de l'enregistrement des statistiques: {str(e)}"
+                f"Erreur lors de la mise à jour des statistiques: {str(e)}"
             )
+            return False
 
     def update_kill_stats(self, username, platform):
         """Mettre à jour les statistiques d'arrêt de flux"""
