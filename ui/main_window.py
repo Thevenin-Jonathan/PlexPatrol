@@ -657,21 +657,12 @@ class PlexPatrolApp(QMainWindow):
     def load_stats(self):
         """Charger les statistiques depuis la base de données"""
         try:
-            stats_list = self.db.get_user_stats()
-
-            # Convertir la liste en dictionnaire avec username comme clé
-            stats_dict = {}
-            for user in stats_list:
-                stats_dict[user["username"]] = user
-
-            # IMPORTANT : retourner le dictionnaire pour que refresh_stats() fonctionne
-            return stats_dict
-
+            return self.db.get_user_stats()
         except Exception as e:
             self.add_log(
                 f"Erreur lors du chargement des statistiques: {str(e)}", "ERROR"
             )
-            return {}  # Retourner un dictionnaire vide en cas d'erreur
+            return {}
 
     def update_stats_table(self):
         """Mettre à jour le tableau des statistiques"""
