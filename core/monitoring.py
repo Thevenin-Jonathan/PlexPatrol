@@ -63,10 +63,19 @@ class StreamMonitor(QThread):
         self.is_running = True
         self.new_log.emit(LogMessages.MONITOR_START, "INFO")
 
+        cleanup_counter = 0  # Pour nettoyer périodiquement les sessions
+
         while self.is_running:
             try:
                 if not self.is_paused:
                     self.check_sessions()
+
+                    # Nettoyage périodique toutes les 10 vérifications
+                    cleanup_counter += 1
+                    if cleanup_counter >= 10:
+                        self.cleanup_expired_sessions()
+                        cleanup_counter = 0
+
                 time.sleep(self.config.check_interval)
             except Exception as e:
                 self.logger.error(f"Erreur dans la boucle de surveillance: {str(e)}")
@@ -135,6 +144,29 @@ class StreamMonitor(QThread):
 
             if self.consecutive_errors >= 3:
                 self.connection_status.emit(False)
+
+    def cleanup_expired_sessions(self):
+        """Nettoie les sessions expirées de la base de données"""
+        try:
+            # Considérer une session comme expirée après 30 minutes d'inactivité
+            expiration_minutes = 30
+            cleaned_count = self.db.cleanup_expired_sessions(expiration_minutes)
+
+            if cleaned_count > 0:
+                self.logger.info(
+                    f"{cleaned_count} sessions expirées nettoyées de la base de données"
+                )
+                self.new_log.emit(
+                    f"{cleaned_count} anciennes sessions nettoyées", "INFO"
+                )
+
+            return cleaned_count
+
+        except Exception as e:
+            self.logger.error(
+                f"Erreur lors du nettoyage des sessions expirées: {str(e)}"
+            )
+            return 0
 
     def test_connection(self):
         """Test si la connexion au serveur Plex est active et fonctionnelle"""

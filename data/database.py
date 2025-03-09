@@ -484,6 +484,44 @@ class PlexPatrolDB:
             )
             return False
 
+    def cleanup_expired_sessions(self, expiration_minutes=30):
+        """
+        Nettoie les sessions expirées de la base de données
+
+        Args:
+            expiration_minutes: Nombre de minutes après lequel une session est considérée expirée
+
+        Returns:
+            Le nombre de sessions nettoyées
+        """
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+
+            # Calculer le timestamp pour l'expiration
+            expiration_time = int(time.time()) - (expiration_minutes * 60)
+
+            # Supprimer les sessions expirées non terminées
+            cursor.execute(
+                "DELETE FROM sessions WHERE last_seen < ? AND was_terminated = 0",
+                (expiration_time,),
+            )
+
+            deleted_count = cursor.rowcount
+            conn.commit()
+            conn.close()
+
+            return deleted_count
+
+        except sqlite3.Error as e:
+            logging.error(
+                f"Erreur SQL lors du nettoyage des sessions expirées: {str(e)}"
+            )
+            return 0
+        except Exception as e:
+            logging.error(f"Erreur lors du nettoyage des sessions expirées: {str(e)}")
+            return 0
+
     def get_session_info(self, session_id):
         """Récupère les informations d'une session"""
         try:
