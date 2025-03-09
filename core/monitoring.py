@@ -467,15 +467,47 @@ class StreamMonitor(QThread):
         params = {"sessionId": session_id, "reason": reason}
         headers = {"X-Plex-Token": self.config.plex_token}
 
-        try:
-            response = requests.get(url, params=params, headers=headers, timeout=10)
-            if response.status_code == 200:
-                self.db.mark_session_terminated(session_id)
-                return True
-            return False
-        except requests.exceptions.RequestException as e:
-            self.logger.error(f"Erreur lors de l'arrêt du stream: {str(e)}")
-            return False
+        max_retries = 3
+        retry_count = 0
+
+        while retry_count < max_retries:
+            try:
+                response = requests.get(url, params=params, headers=headers, timeout=10)
+                if response.status_code == 200:
+                    self.db.mark_session_terminated(session_id)
+                    self.logger.info(
+                        f"Stream {session_id} de l'utilisateur {username} arrêté avec succès"
+                    )
+                    return True
+                else:
+                    self.logger.warning(
+                        f"Échec de l'arrêt du stream {session_id}: HTTP {response.status_code}"
+                    )
+                    retry_count += 1
+                    time.sleep(1)  # Attente avant nouvelle tentative
+            except requests.exceptions.Timeout:
+                self.logger.warning(
+                    f"Délai d'attente dépassé lors de l'arrêt du stream {session_id}"
+                )
+                retry_count += 1
+                time.sleep(2)  # Attente plus longue en cas de timeout
+            except requests.exceptions.ConnectionError:
+                self.logger.error(
+                    f"Erreur de connexion lors de l'arrêt du stream {session_id}"
+                )
+                retry_count += 1
+                time.sleep(2)
+            except Exception as e:
+                self.logger.error(
+                    f"Erreur inattendue lors de l'arrêt du stream {session_id}: {str(e)}"
+                )
+                return False
+
+        # Si on arrive ici, c'est que toutes les tentatives ont échoué
+        self.logger.error(
+            f"Impossible d'arrêter le stream {session_id} après {max_retries} tentatives"
+        )
+        return False
 
     def stop_stream_with_message(self, user_id, username, session_id, custom_message):
         """
