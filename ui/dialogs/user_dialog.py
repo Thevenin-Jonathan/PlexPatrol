@@ -281,10 +281,48 @@ class UserManagementDialog(QDialog):
         username = self.users_table.item(row, 0).text()
 
         try:
-            # Le code existant pour traiter les différentes colonnes...
+            if col == 0:  # Nom d'utilisateur
+                # Mettre à jour seulement le nom d'utilisateur
+                self.db.add_or_update_user(user_id, new_value)
 
-            # Pour la colonne "Disabled", ajouter cette logique spéciale
-            if col == 4:  # Disabled
+            elif col == 1:  # Téléphone
+                # Mettre à jour le numéro de téléphone
+                self.db.add_or_update_user(user_id, username, phone=new_value)
+
+            elif col == 2:  # Max streams
+                try:
+                    max_streams = int(new_value)
+                    if max_streams < 1:
+                        max_streams = 1
+                    elif max_streams > 10:
+                        max_streams = 10
+
+                    self.db.add_or_update_user(
+                        user_id, username, max_streams=max_streams
+                    )
+                    # Mettre à jour l'affichage avec la valeur validée
+                    item.setData(Qt.DisplayRole, max_streams)
+                except ValueError:
+                    # Si la conversion en entier échoue, restaurer l'ancienne valeur
+                    QMessageBox.warning(
+                        self,
+                        "Erreur",
+                        "Le nombre maximum de flux doit être un nombre entier.",
+                    )
+                    self.load_users(
+                        include_disabled=self.show_disabled_check.isChecked()
+                    )
+                    return
+
+            elif col == 3:  # Whitelist
+                is_whitelisted = (
+                    1 if new_value.lower() in ["oui", "yes", "1", "true"] else 0
+                )
+                self.db.set_user_whitelist_status(user_id, is_whitelisted)
+                # Assurer une représentation cohérente
+                item.setText("Oui" if is_whitelisted else "Non")
+
+            elif col == 4:  # Disabled
                 is_disabled = (
                     1 if new_value.lower() in ["oui", "yes", "1", "true"] else 0
                 )
