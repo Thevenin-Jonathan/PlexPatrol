@@ -698,44 +698,58 @@ class UserManagementDialog(QDialog):
 
     def sync_with_plex(self):
         """Synchronise les utilisateurs depuis Plex"""
-        if not self.parent().plex_users:
-            QMessageBox.warning(
-                self,
-                "Synchronisation impossible",
-                UIMessages.ERROR_NO_PLEX_USERS,
-            )
-            return
+        try:
+            # Importer la fonction depuis core/plex_api.py
+            from core.plex_api import get_plex_users
 
-        reply = QMessageBox.question(
-            self,
-            "Confirmation",
-            UIMessages.CONFIRM_SYNC_USERS.format(count=len(self.parent().plex_users)),
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No,
-        )
+            # Récupérer les utilisateurs directement depuis l'API Plex
+            plex_users = get_plex_users()
 
-        if reply == QMessageBox.Yes:
-            # Compteur d'utilisateurs ajoutés ou mis à jour
-            updated_count = 0
-
-            # Mettre à jour ou ajouter chaque utilisateur Plex directement dans la base de données
-            for user_id, username in self.parent().plex_users.items():
-                # Ajouter ou mettre à jour l'utilisateur dans la base de données
-                success = self.db.add_or_update_user(
-                    user_id=user_id,
-                    username=username,
-                    is_whitelisted=0,  # Par défaut, non whitelisté
-                    max_streams=2,  # Valeur par défaut
+            if not plex_users:
+                QMessageBox.warning(
+                    self,
+                    "Synchronisation impossible",
+                    UIMessages.ERROR_NO_PLEX_USERS,
                 )
+                return
 
-                if success:
-                    updated_count += 1
-
-            # Actualiser le tableau
-            self.load_users()
-
-            QMessageBox.information(
+            # Afficher la boîte de dialogue de confirmation
+            reply = QMessageBox.question(
                 self,
-                UIMessages.TITLE_SUCCESS,
-                UIMessages.SYNC_SUCCESS.format(count=updated_count),
+                "Confirmation",
+                UIMessages.CONFIRM_SYNC_USERS.format(count=len(plex_users)),
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No,
+            )
+
+            if reply == QMessageBox.Yes:
+                # Compteur d'utilisateurs ajoutés ou mis à jour
+                updated_count = 0
+
+                # Mettre à jour ou ajouter chaque utilisateur Plex directement dans la base de données
+                for user_id, username in plex_users.items():
+                    # Ajouter ou mettre à jour l'utilisateur dans la base de données
+                    success = self.db.add_or_update_user(
+                        user_id=user_id,
+                        username=username,
+                        is_whitelisted=0,  # Par défaut, non whitelisté
+                        max_streams=2,  # Valeur par défaut
+                    )
+
+                    if success:
+                        updated_count += 1
+
+                # Actualiser le tableau
+                self.load_users()
+
+                QMessageBox.information(
+                    self,
+                    UIMessages.TITLE_SUCCESS,
+                    UIMessages.SYNC_SUCCESS.format(count=updated_count),
+                )
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                UIMessages.TITLE_ERROR,
+                f"Une erreur est survenue pendant la synchronisation: {str(e)}",
             )
