@@ -1,4 +1,24 @@
-Recommandations futures
-Tests unitaires : Créer un dossier tests/ avec des tests pour vos composants principaux
-Documentation : Ajouter plus de docstrings aux classes et méthodes
-Gestion des erreurs : Ajouter plus de try/except pour une meilleure résilience.
+3. Optimisations de performance
+Réduire le rechargement complet des données
+Dans la gestion des utilisateurs, évitez de recharger toutes les données après chaque petite modification :
+
+Chargement asynchrone des statistiques
+Déplacez le chargement des statistiques dans un thread séparé pour éviter de bloquer l'interface utilisateur.
+
+5. Améliorations de l'interface utilisateur
+Sauvegarde des préférences d'affichage
+Enregistrez les préférences d'affichage des colonnes et autres paramètres UI pour les restaurer au redémarrage de l'application.
+
+6. Problèmes de code potentiels
+Importations circulaires
+Des importations circulaires pourraient exister entre vos modules (main_window.py, user_dialog.py, etc.). Vérifiez et restructurez si nécessaire.
+
+Connexions de signaux multiples
+Vérifiez que vous ne connectez pas plusieurs fois les mêmes signaux, ce qui pourrait provoquer des comportements inattendus.
+
+7. Tests et documentation
+Tests unitaires
+Ajoutez des tests unitaires pour les fonctionnalités critiques, notamment la gestion des sessions et des utilisateurs.
+
+Documentation utilisateur
+Complétez le README avec des instructions plus détaillées sur l'installation et la configuration.
