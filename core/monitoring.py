@@ -139,14 +139,46 @@ class StreamMonitor(QThread):
                 self.connection_status.emit(False)
 
     def test_connection(self):
-        """Test si la connexion au serveur Plex est active"""
+        """Test si la connexion au serveur Plex est active et fonctionnelle"""
         url = f"{self.config.plex_server_url}/status/sessions"
         headers = {"X-Plex-Token": self.config.plex_token}
 
         try:
+            start_time = time.time()
             response = requests.get(url, headers=headers, timeout=5)
-            return response.status_code == 200
-        except:
+            response_time = time.time() - start_time
+
+            if response.status_code == 200:
+                self.logger.debug(
+                    f"Connexion au serveur Plex réussie (temps: {response_time:.2f}s)"
+                )
+                return True
+            elif response.status_code == 401:
+                self.logger.error(
+                    "Erreur d'authentification au serveur Plex (token invalide)"
+                )
+                self.new_log.emit(
+                    "Erreur d'authentification au serveur Plex. Vérifiez votre token.",
+                    "ERROR",
+                )
+                return False
+            else:
+                self.logger.error(
+                    f"Échec de la connexion au serveur Plex: code HTTP {response.status_code}"
+                )
+                return False
+        except requests.exceptions.Timeout:
+            self.logger.error(
+                "Délai d'attente dépassé lors de la connexion au serveur Plex"
+            )
+            return False
+        except requests.exceptions.ConnectionError:
+            self.logger.error("Erreur de connexion au serveur Plex")
+            return False
+        except Exception as e:
+            self.logger.error(
+                f"Erreur lors du test de connexion au serveur Plex: {str(e)}"
+            )
             return False
 
     def get_active_sessions(self):
