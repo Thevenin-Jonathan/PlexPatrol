@@ -7,6 +7,11 @@ from PyQt5.QtWidgets import (
     QHeaderView,
     QPushButton,
     QWidget,
+    QGroupBox,
+    QHBoxLayout,
+    QRadioButton,
+    QDateEdit,
+    QLabel,
 )
 from PyQt5.QtChart import (
     QChart,
@@ -19,7 +24,7 @@ from PyQt5.QtChart import (
     QValueAxis,
 )
 from PyQt5.QtGui import QPainter
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QDate
 
 from data.database import PlexPatrolDB
 from utils.constants import UIMessages
@@ -48,35 +53,40 @@ class StatisticsDialog(QDialog):
         self.db = db_instance if db_instance is not None else PlexPatrolDB()
         self.setWindowTitle("Statistiques détaillées")
         self.setMinimumSize(1200, 1000)
+        self.initial_period = {"days": 7}
         self.setup_ui()
 
     def setup_ui(self):
         """Configurer l'interface utilisateur"""
         layout = QVBoxLayout(self)
 
+        # Ajouter un sélecteur de période en haut du dialogue
+        period_widget = self.create_period_selector()
+        layout.addWidget(period_widget)
+
         # Créer les onglets pour les différents types de statistiques
         tabs = QTabWidget()
 
         # Onglets existants
-        data_tab = self.create_data_tab()
+        data_tab = self.create_data_tab(self.initial_period)
         tabs.addTab(data_tab, UIMessages.TAB_DATA)
 
-        chart_tab = self.create_chart_tab()
+        chart_tab = self.create_chart_tab(self.initial_period)
         tabs.addTab(chart_tab, UIMessages.TAB_CHARTS)
 
-        platform_tab = self.create_platform_tab()
+        platform_tab = self.create_platform_tab(self.initial_period)
         tabs.addTab(platform_tab, UIMessages.TAB_PLATFORMS)
 
         # Nouvel onglet: Tendances temporelles
-        trends_tab = self.create_trends_tab()
+        trends_tab = self.create_trends_tab(self.initial_period)
         tabs.addTab(trends_tab, "Tendances")
 
         # Nouvel onglet: Géolocalisation
-        geo_tab = self.create_geolocation_tab()
+        geo_tab = self.create_geolocation_tab(self.initial_period)
         tabs.addTab(geo_tab, "Géolocalisation IP")
 
         # Nouvel onglet: Appareils
-        device_tab = self.create_device_tab()
+        device_tab = self.create_device_tab(self.initial_period)
         tabs.addTab(device_tab, "Appareils")
 
         layout.addWidget(tabs)
@@ -85,6 +95,126 @@ class StatisticsDialog(QDialog):
         close_button = QPushButton(UIMessages.BTN_CLOSE)
         close_button.clicked.connect(self.accept)
         layout.addWidget(close_button, 0, Qt.AlignRight)
+
+    def create_period_selector(self):
+        """Créer un widget pour la sélection de période"""
+
+        # Créer un groupe pour le sélecteur de période
+        group_box = QGroupBox("Période d'analyse")
+        layout = QHBoxLayout(group_box)
+
+        # Option pour les 7 derniers jours (défaut)
+        self.radio_7_days = QRadioButton("7 derniers jours")
+        self.radio_7_days.setChecked(True)
+        layout.addWidget(self.radio_7_days)
+
+        # Option pour les 30 derniers jours
+        self.radio_30_days = QRadioButton("30 derniers jours")
+        layout.addWidget(self.radio_30_days)
+
+        # Option pour les 90 derniers jours
+        self.radio_90_days = QRadioButton("90 derniers jours")
+        layout.addWidget(self.radio_90_days)
+
+        # Option pour une période personnalisée
+        self.radio_custom = QRadioButton("Personnalisée:")
+        layout.addWidget(self.radio_custom)
+
+        # Date de début
+        layout.addWidget(QLabel("Du"))
+        self.date_start = QDateEdit(QDate.currentDate().addDays(-7))
+        self.date_start.setCalendarPopup(True)
+        layout.addWidget(self.date_start)
+
+        # Date de fin
+        layout.addWidget(QLabel("au"))
+        self.date_end = QDateEdit(QDate.currentDate())
+        self.date_end.setCalendarPopup(True)
+        layout.addWidget(self.date_end)
+
+        # Bouton d'application
+        apply_btn = QPushButton("Appliquer")
+        apply_btn.clicked.connect(self.refresh_stats)
+        layout.addWidget(apply_btn)
+
+        # Connecter les boutons radio pour activer/désactiver les sélecteurs de date
+        self.radio_7_days.toggled.connect(self.update_date_selector_state)
+        self.radio_30_days.toggled.connect(self.update_date_selector_state)
+        self.radio_90_days.toggled.connect(self.update_date_selector_state)
+        self.radio_custom.toggled.connect(self.update_date_selector_state)
+
+        # État initial des sélecteurs de date
+        self.update_date_selector_state()
+
+        return group_box
+
+    def update_date_selector_state(self):
+        """Mettre à jour l'état des sélecteurs de date en fonction du choix de période"""
+        custom_selected = self.radio_custom.isChecked()
+        self.date_start.setEnabled(custom_selected)
+        self.date_end.setEnabled(custom_selected)
+
+        # Mettre à jour les dates par défaut selon l'option sélectionnée
+        today = QDate.currentDate()
+        if self.radio_7_days.isChecked():
+            self.date_start.setDate(today.addDays(-7))
+            self.date_end.setDate(today)
+        elif self.radio_30_days.isChecked():
+            self.date_start.setDate(today.addDays(-30))
+            self.date_end.setDate(today)
+        elif self.radio_90_days.isChecked():
+            self.date_start.setDate(today.addDays(-90))
+            self.date_end.setDate(today)
+
+    def get_selected_period(self):
+        """Obtenir la période sélectionnée en jours ou comme tuple de dates"""
+        if self.radio_7_days.isChecked():
+            return {"days": 7}
+        elif self.radio_30_days.isChecked():
+            return {"days": 30}
+        elif self.radio_90_days.isChecked():
+            return {"days": 90}
+        else:  # Période personnalisée
+            start_date = self.date_start.date().toString("yyyy-MM-dd")
+            end_date = self.date_end.date().toString("yyyy-MM-dd")
+            return {"start_date": start_date, "end_date": end_date}
+
+    def refresh_stats(self):
+        """Rafraîchir les statistiques avec la période sélectionnée"""
+        # Obtenir la période sélectionnée
+        period = self.get_selected_period()
+
+        # Mettre à jour les données pour tous les onglets
+        tabs = self.findChild(QTabWidget)
+        if tabs:
+            current_index = tabs.currentIndex()
+
+            # Recréer les onglets avec les nouvelles données
+            # Suppression des anciens onglets
+            while tabs.count() > 0:
+                tabs.removeTab(0)
+
+            # Recréation des onglets avec les nouvelles données
+            data_tab = self.create_data_tab(period)
+            tabs.addTab(data_tab, UIMessages.TAB_DATA)
+
+            chart_tab = self.create_chart_tab(period)
+            tabs.addTab(chart_tab, UIMessages.TAB_CHARTS)
+
+            platform_tab = self.create_platform_tab(period)
+            tabs.addTab(platform_tab, UIMessages.TAB_PLATFORMS)
+
+            trends_tab = self.create_trends_tab(period)
+            tabs.addTab(trends_tab, "Tendances")
+
+            geo_tab = self.create_geolocation_tab(period)
+            tabs.addTab(geo_tab, "Géolocalisation IP")
+
+            device_tab = self.create_device_tab(period)
+            tabs.addTab(device_tab, "Appareils")
+
+            # Restaurer l'onglet actif
+            tabs.setCurrentIndex(current_index)
 
     def enable_sorting_for_table(self, table):
         """Active le tri pour un tableau"""
@@ -97,10 +227,19 @@ class StatisticsDialog(QDialog):
         # Définir l'ordre de tri par défaut sur la première colonne, descendant
         table.sortItems(0, Qt.AscendingOrder)
 
-    def create_data_tab(self):
+    def create_data_tab(self, period=None):
         """Créer l'onglet avec le tableau de données"""
         tab = QWidget()
         layout = QVBoxLayout(tab)
+
+        # Si période spécifiée, récupérer les stats en fonction de cette période
+        if period is not None:
+            if "days" in period:
+                self.stats = self.db.get_user_stats(days=period["days"])
+            else:
+                self.stats = self.db.get_user_stats(
+                    start_date=period["start_date"], end_date=period["end_date"]
+                )
 
         # Tableau détaillé
         table = QTableWidget()
@@ -124,32 +263,65 @@ class StatisticsDialog(QDialog):
             total_sessions = data.get("total_sessions", 0)
             kill_count = data.get("kill_count", 0)
             last_seen = data.get("last_seen", "Jamais")
+
+            # Calculer le taux d'arrêt
             kill_rate = (
                 f"{(kill_count / total_sessions) * 100:.1f}%"
                 if total_sessions > 0
                 else "N/A"
             )
 
+            # Ajouter les données au tableau
             table.setItem(row, 0, QTableWidgetItem(username))
-            table.setItem(row, 1, QTableWidgetItem(str(total_sessions)))
-            table.setItem(row, 2, QTableWidgetItem(str(kill_count)))
+
+            # Utiliser des éléments numériques pour les colonnes sessions et kills
+            sessions_item = QTableWidgetItem()
+            sessions_item.setData(Qt.DisplayRole, total_sessions)
+            table.setItem(row, 1, sessions_item)
+
+            kills_item = QTableWidgetItem()
+            kills_item.setData(Qt.DisplayRole, kill_count)
+            table.setItem(row, 2, kills_item)
+
+            # Date de dernière activité
             table.setItem(row, 3, QTableWidgetItem(last_seen))
-            table.setItem(row, 4, QTableWidgetItem(kill_rate))
+
+            # Utiliser la classe personnalisée pour le taux d'arrêt
+            rate_value = (
+                (kill_count / total_sessions) * 100 if total_sessions > 0 else 0
+            )
+            rate_item = PercentageTableItem(kill_rate, rate_value)
+            table.setItem(row, 4, rate_item)
 
             row += 1
 
+        # Activer le tri pour ce tableau
         self.enable_sorting_for_table(table)
+
+        # Configurer le tri initial par la colonne "Streams arrêtés" (colonne 2) par ordre décroissant
+        table.sortItems(2, Qt.DescendingOrder)
+
         layout.addWidget(table)
         return tab
 
-    def create_chart_tab(self):
+    def create_chart_tab(self, period=None):
         """Créer l'onglet avec les graphiques"""
         tab = QWidget()
         layout = QVBoxLayout(tab)
 
+        # Déterminer le titre en fonction de la période
+        if period is None or ("days" in period and period["days"] == 7):
+            title = UIMessages.CHART_SESSIONS_TITLE + " (7 derniers jours)"
+        elif "days" in period:
+            title = (
+                f"{UIMessages.CHART_SESSIONS_TITLE} ({period['days']} derniers jours)"
+            )
+        else:
+            title = f"{UIMessages.CHART_SESSIONS_TITLE} ({period['start_date']} à {period['end_date']})"
+
         # Créer un graphique en camembert pour la répartition des arrêts
         pie_chart = QChart()
-        pie_chart.setTitle(UIMessages.CHART_SESSIONS_TITLE)
+        pie_chart.setTitle(title)
         pie_chart.setAnimationOptions(QChart.SeriesAnimations)
 
         # Créer la série pour le camembert
@@ -181,14 +353,23 @@ class StatisticsDialog(QDialog):
 
         return tab
 
-    def create_platform_tab(self):
+    def create_platform_tab(self, period=None):
         """Créer l'onglet d'analyse par plateforme"""
         tab = QWidget()
         layout = QVBoxLayout(tab)
 
         # Créer un graphique en barres pour les plateformes
         bar_chart = QChart()
-        bar_chart.setTitle(UIMessages.CHART_PLATFORMS_TITLE)
+        if period is None or ("days" in period and period["days"] == 7):
+            bar_chart.setTitle(UIMessages.CHART_PLATFORMS_TITLE + " (7 derniers jours)")
+        elif "days" in period:
+            bar_chart.setTitle(
+                f"{UIMessages.CHART_PLATFORMS_TITLE} ({period['days']} derniers jours)"
+            )
+        else:
+            bar_chart.setTitle(
+                f"{UIMessages.CHART_PLATFORMS_TITLE} ({period['start_date']} à {period['end_date']})"
+            )
         bar_chart.setAnimationOptions(QChart.SeriesAnimations)
 
         # Collecter les données par plateforme
@@ -263,7 +444,7 @@ class StatisticsDialog(QDialog):
 
         return tab
 
-    def create_trends_tab(self):
+    def create_trends_tab(self, period=None):
         """Créer l'onglet d'analyse des tendances temporelles"""
         from PyQt5.QtChart import QLineSeries, QDateTimeAxis, QValueAxis
         from datetime import datetime
@@ -272,23 +453,40 @@ class StatisticsDialog(QDialog):
         tab = QWidget()
         layout = QVBoxLayout(tab)
 
-        # Récupérer les données de sessions avec horodatage
-        sessions_by_time = self.db.get_sessions_by_time(
-            days=7
-        )  # Sessions des 7 derniers jours
+        # Utiliser la période spécifiée ou par défaut 7 jours
+        if period is None:
+            period = {"days": 7}
+
+        # Récupérer les données de sessions avec horodatage selon la période
+        if "days" in period:
+            sessions_by_time = self.db.get_sessions_by_time(days=period["days"])
+        else:
+            sessions_by_time = self.db.get_sessions_by_time_range(
+                start_date=period["start_date"], end_date=period["end_date"]
+            )
 
         # Vérifier si nous avons des données
         if not sessions_by_time:
             # Ajouter un message si aucune donnée n'est disponible
-            empty_message = QTableWidgetItem(
+            empty_label = QLabel(
                 "Aucune donnée disponible pour la période sélectionnée"
             )
-            layout.addWidget(empty_message)
+            empty_label.setAlignment(Qt.AlignCenter)
+            layout.addWidget(empty_label)
             return tab
 
         # Créer un graphique pour l'utilisation au fil du temps
         time_chart = QChart()
-        time_chart.setTitle("Utilisation par jour et heure (7 derniers jours)")
+        if period is None or ("days" in period and period["days"] == 7):
+            time_chart.setTitle("Utilisation par jour et heure (7 derniers jours)")
+        elif "days" in period:
+            time_chart.setTitle(
+                f"Utilisation par jour et heure ({period['days']} derniers jours)"
+            )
+        else:
+            time_chart.setTitle(
+                f"Utilisation par jour et heure ({period['start_date']} à {period['end_date']})"
+            )
         time_chart.setAnimationOptions(QChart.SeriesAnimations)
 
         # Créer une série pour chaque type d'information
@@ -435,7 +633,7 @@ class StatisticsDialog(QDialog):
 
         return hour_chart
 
-    def create_device_tab(self):
+    def create_device_tab(self, period=None):
         """Créer un onglet pour analyser les appareils les plus utilisés"""
         from PyQt5.QtGui import QFontMetrics
         from PyQt5.QtWidgets import QSplitter, QSizePolicy
@@ -451,11 +649,27 @@ class StatisticsDialog(QDialog):
         chart_layout = QVBoxLayout(chart_container)
 
         # Récupérer les statistiques sur les appareils
-        device_stats = self.db.get_device_stats()
+        if period is None:
+            device_stats = self.db.get_device_stats()
+        elif "days" in period:
+            device_stats = self.db.get_device_stats(days=period["days"])
+        else:
+            device_stats = self.db.get_device_stats(
+                start_date=period["start_date"], end_date=period["end_date"]
+            )
 
         # Créer un graphique en camembert pour les appareils
         pie_chart = QChart()
-        pie_chart.setTitle("Répartition des appareils utilisés")
+        if period is None or ("days" in period and period["days"] == 7):
+            pie_chart.setTitle("Répartition des appareils utilisés (7 derniers jours)")
+        elif "days" in period:
+            pie_chart.setTitle(
+                f"Répartition des appareils utilisés ({period['days']} derniers jours)"
+            )
+        else:
+            pie_chart.setTitle(
+                f"Répartition des appareils utilisés ({period['start_date']} à {period['end_date']})"
+            )
         pie_chart.setAnimationOptions(QChart.SeriesAnimations)
 
         # Créer la série pour le camembert
@@ -560,7 +774,7 @@ class StatisticsDialog(QDialog):
 
         return tab
 
-    def create_geolocation_tab(self):
+    def create_geolocation_tab(self, period=None):
         """Créer l'onglet de géolocalisation IP"""
         from PyQt5.QtWebEngineWidgets import QWebEngineView
         from PyQt5.QtCore import QUrl
@@ -571,6 +785,16 @@ class StatisticsDialog(QDialog):
 
         tab = QWidget()
         layout = QVBoxLayout(tab)
+
+        # Récupérer les statistiques des IPs en fonction de la période
+        if period is None:
+            ip_stats = self.db.get_ip_stats()
+        elif "days" in period:
+            ip_stats = self.db.get_ip_stats(days=period["days"])
+        else:
+            ip_stats = self.db.get_ip_stats(
+                start_date=period["start_date"], end_date=period["end_date"]
+            )
 
         # Récupérer les statistiques des IPs
         ip_stats = self.db.get_ip_stats()

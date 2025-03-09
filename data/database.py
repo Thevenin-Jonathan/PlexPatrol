@@ -537,6 +537,43 @@ class PlexPatrolDB:
             logging.error(f"Erreur lors du nettoyage des sessions expirées: {str(e)}")
             return 0
 
+    def get_sessions_by_time_range(self, start_date, end_date):
+        """Obtenir l'historique des sessions sur une période personnalisée"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+
+            query = """
+            SELECT 
+                start_time,
+                end_time,
+                was_terminated,
+                user_id,
+                platform,
+                device,
+                library_section,
+                media_title
+            FROM sessions
+            WHERE start_time >= ? AND start_time <= ?
+            ORDER BY start_time
+            """
+
+            # Ajouter l'heure de fin de journée pour la date de fin
+            end_date_with_time = end_date + " 23:59:59"
+
+            cursor.execute(query, (start_date, end_date_with_time))
+            results = [dict(row) for row in cursor.fetchall()]
+
+            conn.close()
+            return results
+
+        except Exception as e:
+            logging.error(
+                f"Erreur lors de la récupération des sessions par période: {str(e)}"
+            )
+            return []
+
     def get_session_info(self, session_id):
         """Récupère les informations d'une session"""
         try:
@@ -668,62 +705,104 @@ class PlexPatrolDB:
             )
             return []
 
-    def get_device_stats(self):
-        """Obtenir les statistiques d'utilisation par appareil"""
+    def get_ip_stats(self, days=None, start_date=None, end_date=None):
+        """Obtenir les statistiques des adresses IP
+
+        Args:
+            days (int, optional): Nombre de jours à prendre en compte. Par défaut None.
+            start_date (str, optional): Date de début au format YYYY-MM-DD. Par défaut None.
+            end_date (str, optional): Date de fin au format YYYY-MM-DD. Par défaut None.
+        """
         try:
             conn = sqlite3.connect(self.db_path)
-            conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
 
+            # Base de la requête
             query = """
             SELECT 
-                device, 
-                COUNT(*) as count,
-                SUM(CASE WHEN was_terminated = 1 THEN 1 ELSE 0 END) as terminated_count
+                ip_address, 
+                COUNT(*) as count, 
+                MAX(start_time) as last_seen 
             FROM sessions
-            GROUP BY device
-            ORDER BY count DESC
             """
 
-            cursor.execute(query)
-            results = [dict(row) for row in cursor.fetchall()]
+            # Ajouter la condition de période si spécifiée
+            params = []
+            if days is not None:
+                query += " WHERE start_time >= datetime('now', '-' || ? || ' days')"
+                params.append(days)
+            elif start_date and end_date:
+                query += " WHERE start_time BETWEEN ? AND ?"
+                # Ajouter l'heure de fin de journée pour la date de fin
+                end_date_with_time = end_date + " 23:59:59"
+                params.extend([start_date, end_date_with_time])
+
+            # Grouper et trier
+            query += " GROUP BY ip_address ORDER BY count DESC"
+
+            cursor.execute(query, params)
+            results = []
+            for row in cursor.fetchall():
+                results.append(
+                    {"ip_address": row[0], "count": row[1], "last_seen": row[2]}
+                )
 
             conn.close()
             return results
-
         except Exception as e:
             logging.error(
-                f"Erreur lors de la récupération des statistiques d'appareils: {str(e)}"
+                f"Erreur lors de la récupération des statistiques IP: {str(e)}"
             )
             return []
 
-    def get_ip_stats(self):
-        """Obtenir les statistiques d'utilisation par adresse IP"""
+    def get_device_stats(self, days=None, start_date=None, end_date=None):
+        """Obtenir les statistiques des appareils utilisés
+
+        Args:
+            days (int, optional): Nombre de jours à prendre en compte. Par défaut None.
+            start_date (str, optional): Date de début au format YYYY-MM-DD. Par défaut None.
+            end_date (str, optional): Date de fin au format YYYY-MM-DD. Par défaut None.
+        """
         try:
             conn = sqlite3.connect(self.db_path)
-            conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
 
+            # Base de la requête
             query = """
             SELECT 
-                ip_address,
-                COUNT(*) as count,
-                MAX(start_time) as last_seen
+                device,
+                COUNT(*) as session_count,
+                SUM(CASE WHEN was_terminated = 1 THEN 1 ELSE 0 END) as terminated_count
             FROM sessions
-            WHERE ip_address IS NOT NULL AND ip_address != ''
-            GROUP BY ip_address
-            ORDER BY count DESC
             """
 
-            cursor.execute(query)
-            results = [dict(row) for row in cursor.fetchall()]
+            # Ajouter la condition de période si spécifiée
+            params = []
+            if days is not None:
+                query += " WHERE start_time >= datetime('now', '-' || ? || ' days')"
+                params.append(days)
+            elif start_date and end_date:
+                query += " WHERE start_time BETWEEN ? AND ?"
+                # Ajouter l'heure de fin de journée pour la date de fin
+                end_date_with_time = end_date + " 23:59:59"
+                params.extend([start_date, end_date_with_time])
+
+            # Grouper et trier
+            query += " GROUP BY device ORDER BY session_count DESC"
+
+            cursor.execute(query, params)
+
+            results = []
+            for row in cursor.fetchall():
+                results.append(
+                    {"device": row[0], "count": row[1], "terminated_count": row[2]}
+                )
 
             conn.close()
             return results
-
         except Exception as e:
             logging.error(
-                f"Erreur lors de la récupération des statistiques d'IPs: {str(e)}"
+                f"Erreur lors de la récupération des statistiques d'appareils: {str(e)}"
             )
             return []
 
@@ -776,64 +855,115 @@ class PlexPatrolDB:
             )
             return False
 
-    def get_user_stats(self, user_id=None):
-        """Obtenir les statistiques d'utilisation"""
+    def get_user_stats(self, user_id=None, days=None, start_date=None, end_date=None):
+        """Obtenir les statistiques d'utilisation
+
+        Args:
+            user_id (str, optional): ID de l'utilisateur pour filtrer les résultats. Par défaut None.
+            days (int, optional): Nombre de jours à prendre en compte. Par défaut None.
+            start_date (str, optional): Date de début au format YYYY-MM-DD. Par défaut None.
+            end_date (str, optional): Date de fin au format YYYY-MM-DD. Par défaut None.
+
+        Returns:
+            dict: Dictionnaire des statistiques utilisateurs, avec le nom d'utilisateur comme clé
+        """
         try:
             conn = sqlite3.connect(self.db_path)
             conn.row_factory = sqlite3.Row  # Pour accéder aux colonnes par nom
             cursor = conn.cursor()
 
-            if user_id:
-                query = """
-                SELECT 
-                    u.id, u.username, 
-                    COALESCE(u.total_sessions, 0) AS total_sessions,
-                    COALESCE(u.terminated_sessions, 0) AS kill_count,
-                    u.last_kill,
-                    u.last_seen
-                FROM plex_users u
-                WHERE u.id = ?
-                """
-                cursor.execute(query, (user_id,))
-            else:
-                query = """
-                SELECT 
-                    u.id, u.username, 
-                    COALESCE(u.total_sessions, 0) AS total_sessions,
-                    COALESCE(u.terminated_sessions, 0) AS kill_count,
-                    u.last_kill,
-                    u.last_seen
-                FROM plex_users u
-                """
-                cursor.execute(query)
+            # Base de la requête
+            query_base = """
+            SELECT 
+                u.id, u.username, 
+                COUNT(DISTINCT s.id) AS total_sessions,
+                SUM(CASE WHEN s.was_terminated = 1 THEN 1 ELSE 0 END) AS kill_count,
+                MAX(CASE WHEN s.was_terminated = 1 THEN s.start_time END) AS last_kill,
+                MAX(s.start_time) AS last_seen
+            FROM plex_users u
+            LEFT JOIN sessions s ON u.id = s.user_id
+            """
 
-            results = []
+            # Initialiser les conditions et paramètres
+            conditions = []
+            params = []
+
+            # Condition de période
+            if days is not None:
+                conditions.append(
+                    "s.start_time >= datetime('now', '-' || ? || ' days')"
+                )
+                params.append(days)
+            elif start_date and end_date:
+                conditions.append("s.start_time BETWEEN ? AND ?")
+                # Ajouter l'heure de fin de journée pour la date de fin
+                end_date_with_time = end_date + " 23:59:59"
+                params.extend([start_date, end_date_with_time])
+
+            # Condition d'utilisateur spécifique
+            if user_id:
+                conditions.append("u.id = ?")
+                params.append(user_id)
+
+            # Ajouter les conditions à la requête de base
+            if conditions:
+                query_base += " WHERE " + " AND ".join(conditions)
+
+            # Grouper par utilisateur
+            query_base += " GROUP BY u.id, u.username"
+
+            # Exécuter la requête
+            cursor.execute(query_base, params)
+
+            # Convertir les résultats en dictionnaire avec username comme clé
+            stats_dict = {}
             for row in cursor.fetchall():
                 user = dict(row)
 
+                # Si total_sessions est NULL (pas de sessions trouvées), initialiser à 0
+                if user["total_sessions"] is None:
+                    user["total_sessions"] = 0
+                    user["kill_count"] = 0
+
+                username = user["username"]
+
                 # Récupérer les plateformes pour chaque utilisateur
-                cursor.execute(
-                    """
-                    SELECT platform, count
-                    FROM platform_stats
-                    WHERE user_id = ?
-                    ORDER BY count DESC
-                    """,
-                    (user["id"],),
-                )
+                platform_query = """
+                SELECT platform, COUNT(*) as count
+                FROM sessions
+                WHERE user_id = ?
+                """
+
+                platform_params = [user["id"]]
+
+                # Ajouter le filtre de période aussi pour les plateformes
+                if days is not None:
+                    platform_query += (
+                        " AND start_time >= datetime('now', '-' || ? || ' days')"
+                    )
+                    platform_params.append(days)
+                elif start_date and end_date:
+                    platform_query += " AND start_time BETWEEN ? AND ?"
+                    platform_params.extend([start_date, end_date_with_time])
+
+                platform_query += " GROUP BY platform ORDER BY count DESC"
+
+                cursor.execute(platform_query, platform_params)
 
                 platforms = {}
                 for platform_row in cursor.fetchall():
-                    platforms[platform_row["platform"]] = platform_row["count"]
+                    platforms[platform_row[0]] = platform_row[1]
 
                 user["platforms"] = platforms
-                results.append(user)
+
+                # Ajouter au dictionnaire avec username comme clé
+                stats_dict[username] = user
 
             conn.close()
-            return results
+            return stats_dict
         except Exception as e:
             logging.error(f"Erreur lors de la récupération des statistiques: {str(e)}")
-            return []
+            return {}  # Retourner un dictionnaire vide en cas d'erreur
 
     # =====================================================
     # MÉTHODES DE GESTION DES AUTORISATIONS
