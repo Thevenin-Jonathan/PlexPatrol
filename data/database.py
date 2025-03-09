@@ -531,9 +531,11 @@ class PlexPatrolDB:
 
             cursor.execute(
                 """
-                SELECT * FROM sessions
-                WHERE session_id = ?
-                ORDER BY timestamp DESC
+                SELECT *, u.username 
+                FROM sessions s
+                LEFT JOIN plex_users u ON s.user_id = u.id
+                WHERE s.session_id = ?
+                ORDER BY s.start_time DESC
                 LIMIT 1
                 """,
                 (session_id,),
