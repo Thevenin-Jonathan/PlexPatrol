@@ -1,13 +1,8 @@
 import PyInstaller.__main__
 import os
 
-# Chemin vers l'icône de l'application (créez ou utilisez une icône existante)
+# Chemin vers l'icône de l'application
 icon_path = os.path.join("assets", "plexpatrol.ico")
-
-# Répertoires à inclure
-data_dirs = [
-    ("assets", "assets"),  # Incluez tous les fichiers de ressources
-]
 
 # Paramètres PyInstaller
 PyInstaller.__main__.run(
@@ -26,8 +21,9 @@ PyInstaller.__main__.run(
         "--add-data=data/GeoLite2-City.mmdb;data",  # Ajout de la base de données GeoLite2
         # Imports cachés essentiels
         "--hidden-import=pkgutil",
-        "--hidden-import=utils.constants",  # Important: ajout explicite de ce module
+        "--hidden-import=utils.constants",
         "--hidden-import=config.config_manager",
+        # Imports Qt
         "--hidden-import=PyQt5.QtWidgets",
         "--hidden-import=PyQt5.QtGui",
         "--hidden-import=PyQt5.QtCore",
@@ -36,8 +32,20 @@ PyInstaller.__main__.run(
         "--hidden-import=PyQt5.QtWebEngineWidgets",
         "--hidden-import=PyQt5.QtWebEngine",
         "--hidden-import=PyQt5.QtChart",
+        # Imports pour les statistiques améliorées
         "--hidden-import=geoip2",
         "--hidden-import=geoip2.database",
+        "--hidden-import=sqlite3",
+        "--hidden-import=json",  # Pour le traitement JSON
+        "--hidden-import=datetime",  # Pour le traitement des dates
+        "--hidden-import=tempfile",  # Pour les fichiers temporaires en géolocalisation
+        # Support graphique avancé
+        "--hidden-import=PyQt5.QtChart.QChart",
+        "--hidden-import=PyQt5.QtChart.QPieSeries",
+        "--hidden-import=PyQt5.QtChart.QPieSlice",
+        "--hidden-import=PyQt5.QtChart.QChartView",
+        "--hidden-import=PyQt5.QtChart.QBarSeries",
+        "--hidden-import=PyQt5.QtChart.QBarSet",
         "--additional-hooks-dir=hooks",
         "--noconfirm",  # Ne pas demander de confirmation
         "--clean",  # Nettoyer avant la construction
