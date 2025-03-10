@@ -8,7 +8,7 @@ from geoip2.errors import AddressNotFoundError
 class GeoIPLocator:
     def __init__(self):
         # Créer le dossier geoip s'il n'existe pas
-        geoip_dir = os.path.join(get_app_path(), "assets", "geoip")
+        geoip_dir = os.path.join(get_app_path(), "data")
         if not os.path.exists(geoip_dir):
             try:
                 os.makedirs(geoip_dir, exist_ok=True)

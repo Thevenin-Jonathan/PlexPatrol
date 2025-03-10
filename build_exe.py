@@ -23,6 +23,8 @@ PyInstaller.__main__.run(
         "--add-data=data;data",  # Ajout du dossier data si nécessaire
         "--add-data=ui;ui",  # Ajout du dossier ui
         "--add-data=core;core",  # Ajout du dossier core
+        "--add-data=data/GeoLite2-City.mmdb;data",  # Ajout de la base de données GeoLite2
+        # Imports cachés essentiels
         "--hidden-import=pkgutil",
         "--hidden-import=utils.constants",  # Important: ajout explicite de ce module
         "--hidden-import=config.config_manager",
