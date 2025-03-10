@@ -156,9 +156,6 @@ class StreamMonitor(QThread):
                 self.logger.info(
                     f"{cleaned_count} sessions expirées nettoyées de la base de données"
                 )
-                self.new_log.emit(
-                    f"{cleaned_count} anciennes sessions nettoyées", "INFO"
-                )
 
             return cleaned_count
 
