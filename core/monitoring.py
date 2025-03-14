@@ -405,21 +405,74 @@ class StreamMonitor(QThread):
             # Récupérer la limite personnalisée de l'utilisateur
             max_streams = self.db.get_user_max_streams(user_id)
             if max_streams is None:
-                continue  # Pas de limite définie pour cet utilisateur
+                max_streams = self.config.default_max_streams
+                if max_streams is None:
+                    self.logger.warning(
+                        f"Pas de limite de flux définie pour {username}, surveillance désactivée"
+                    )
+                    continue  # Pas de limite définie pour cet utilisateur
 
             # Nombre total de flux pour cet utilisateur (unique par appareil + IP)
             unique_streams = {}
+
+            # Dictionnaire pour suivre les médias en cours de lecture et détecter les Chromecast
+            media_titles = {}
+            chromecast_streams = {}
 
             # Séparation des flux par état
             paused_streams = []
             playing_streams = []
             other_streams = []
 
+            # Premier parcours pour identifier les flux Chromecast et leur média associé
+            for stream in streams:
+                media_title = stream[4]  # media_title
+                device = stream[7]  # device
+                session_id = stream[0]  # session_id
+
+                # Détecter les appareils Chromecast
+                if "chromecast" in device.lower():
+                    chromecast_streams[session_id] = media_title
+
+                # Enregistrer tous les médias lus
+                if media_title not in media_titles:
+                    media_titles[media_title] = []
+                media_titles[media_title].append(session_id)
+
+            # Second parcours pour classification et filtrage des flux
             for stream in streams:
                 session_id = stream[0]
                 ip_address = stream[1]
                 player_id = stream[2]
                 state = stream[9]  # état du stream (playing, paused, etc.)
+                media_title = stream[4]  # media_title
+                device = stream[7]  # device
+
+                # Vérifier si ce flux est un doublon Chromecast
+                is_chromecast_duplicate = False
+
+                # Si ce flux n'est pas un Chromecast mais son média est aussi lu sur un Chromecast
+                if (
+                    session_id not in chromecast_streams
+                    and media_title in media_titles
+                    and len(media_titles[media_title]) > 1
+                ):
+
+                    # Vérifier si parmi les autres flux du même média, il y a un Chromecast
+                    for other_session_id in media_titles[media_title]:
+                        if (
+                            other_session_id != session_id
+                            and other_session_id in chromecast_streams
+                        ):
+                            is_chromecast_duplicate = True
+                            self.logger.info(
+                                f"Flux {session_id} détecté comme diffusion Chromecast pour le média '{media_title}'"
+                            )
+                            break
+
+                # Ignorer les flux qui sont des doublons Chromecast
+                if is_chromecast_duplicate:
+                    continue
 
                 # Créer une clé unique basée sur l'ID de l'appareil et l'adresse IP
                 stream_key = f"{player_id}_{ip_address}"
@@ -435,10 +488,10 @@ class StreamMonitor(QThread):
                 else:
                     other_streams.append(stream)
 
-            # Nombre total de flux uniques
+            # Nombre total de flux uniques après filtrage des doublons Chromecast
             stream_count = len(unique_streams)
 
-            # Vérifier si l'utilisateur dépasse sa limite
+            # Le reste du code existant pour la vérification des limites et l'arrêt des flux
             if stream_count > max_streams:
                 self.logger.warning(
                     f"Utilisateur {username} dépasse la limite: {stream_count} flux actifs (max: {max_streams})"
