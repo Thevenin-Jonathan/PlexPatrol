@@ -9,7 +9,10 @@ def get_app_path():
 
     if getattr(sys, "frozen", False):
         # PyInstaller crée un dossier temporaire et met les fichiers dedans
-        return sys._MEIPASS
+        app_data = os.path.join(os.environ["APPDATA"], "PlexPatrol")
+        if not os.path.exists(app_data):
+            os.makedirs(app_data)
+        return app_data
     else:
         # Mode développement: le script s'exécute directement
         return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
