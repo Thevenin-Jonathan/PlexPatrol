@@ -177,7 +177,7 @@ class UIMessages:
     CHART_PLATFORMS_TITLE = "Arrêts de flux par plateforme"
 
     # Messages de désactivation de compte
-    ACCOUNT_DISABLED_MESSAGE = "Votre compte a été suspendu pour impayé. Veuillez me contacter sur WhatsApp pour régulariser votre situation."
+    ACCOUNT_DISABLED_MESSAGE = "Compte verrouillé. Veuillez me contacter sur WhatsApp 0673562793 pour régulariser votre situation."
     LABEL_ACCOUNT_DISABLED = "Compte désactivé:"
     DISABLED_USER_ATTEMPT = "❌ Tentative de lecture sur compte désactivé:\n\nUtilisateur: {username}\nTitre: {title}\nPlateforme: {platform}\nIP: {ip}"
 
