@@ -47,8 +47,7 @@ class PlexPatrolDB:
     def create_table_users(self, conn):
         """Crée la table des utilisateurs Plex"""
         cursor = conn.cursor()
-        cursor.execute(
-            """
+        cursor.execute("""
             CREATE TABLE IF NOT EXISTS plex_users (
                 id TEXT PRIMARY KEY,
                 username TEXT NOT NULL,
@@ -63,14 +62,12 @@ class PlexPatrolDB:
                 last_kill TEXT,
                 total_sessions INTEGER DEFAULT 0
             )
-            """
-        )
+            """)
 
     def create_table_sessions(self, conn):
         """Crée la table des sessions Plex"""
         cursor = conn.cursor()
-        cursor.execute(
-            """
+        cursor.execute("""
             CREATE TABLE IF NOT EXISTS sessions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id TEXT,
@@ -85,14 +82,12 @@ class PlexPatrolDB:
                 was_terminated INTEGER DEFAULT 0,
                 FOREIGN KEY (user_id) REFERENCES plex_users(id)
             )
-            """
-        )
+            """)
 
     def create_table_config(self, conn):
         """Crée la table de configuration"""
         cursor = conn.cursor()
-        cursor.execute(
-            """
+        cursor.execute("""
             CREATE TABLE IF NOT EXISTS app_config (
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL,
@@ -101,14 +96,12 @@ class PlexPatrolDB:
                 description TEXT,
                 last_modified TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
-            """
-        )
+            """)
 
     def create_table_platform_stats(self, conn):
         """Crée la table pour les statistiques par plateforme"""
         cursor = conn.cursor()
-        cursor.execute(
-            """
+        cursor.execute("""
             CREATE TABLE IF NOT EXISTS platform_stats (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id TEXT NOT NULL,
@@ -116,8 +109,7 @@ class PlexPatrolDB:
                 count INTEGER DEFAULT 0,
                 UNIQUE(user_id, platform)
             )
-            """
-        )
+            """)
 
     # =====================================================
     # MÉTHODES DE GESTION DES UTILISATEURS
@@ -187,7 +179,7 @@ class PlexPatrolDB:
                     is_disabled = 0
 
                 if max_streams is None:
-                    max_streams = 2
+                    max_streams = 1
 
                 cursor.execute(
                     """
