@@ -733,7 +733,6 @@ class UserManagementDialog(QDialog):
                         user_id=user_id,
                         username=username,
                         is_whitelisted=0,  # Par défaut, non whitelisté
-                        max_streams=2,  # Valeur par défaut
                     )
 
                     if success:
